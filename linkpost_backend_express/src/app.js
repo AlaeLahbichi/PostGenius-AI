@@ -3,6 +3,7 @@ import cors from "cors";
 import morgan from "morgan";
 
 import linkedinRoutes from "../routes/linkedin.routes.js";
+import ownpostRoutes from "../routes/ownpost.routes.js";
 
 const app = express();
 
@@ -51,6 +52,9 @@ app.get("/", (req, res) => {
  */
 
 app.use("/linkedin", linkedinRoutes);
+
+// Nouvelle brique : mes propres postes (collection mes_postes)
+app.use("/ownposts", ownpostRoutes);
 
 /**
  * ===============================
