@@ -1,21 +1,5 @@
 "use client";
 
-/**
- * PostGenius AI — Dashboard "Mes Postes"
- * ------------------------------------------------------------
- * Un seul fichier page.tsx.
- *
- * Fonctionnalités :
- *  - Collecte LinkedIn via le backend (Bright Data -> MongoDB)
- *  - KPI globaux + évolution dans le temps
- *  - Suivi global OU par poste (graphes)
- *  - Mise à jour manuelle (bouton) ou automatique (minuteur 5 min)
- *  - Comparaison de deux postes
- *  - Détail complet de chaque poste
- *
- * Dépendance : npm i recharts
- * ------------------------------------------------------------
- */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {

@@ -3,9 +3,6 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-/* ------------------------------------------------------------------ */
-/*  Config                                                              */
-/* ------------------------------------------------------------------ */
 const SITE_NAME = "PostGenius AI";
 const API_URL = "http://localhost:3000/linkedin/posts/filter";
 

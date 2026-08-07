@@ -3,9 +3,6 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-/* ------------------------------------------------------------------ */
-/*  Config — change these two lines to match your brand               */
-/* ------------------------------------------------------------------ */
 const SITE_NAME = "PostGenius AI";
 const CONTACT_EMAIL = "a.lahbichi2004@gmail.com";
 
