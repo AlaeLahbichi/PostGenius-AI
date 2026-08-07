@@ -4,14 +4,13 @@ import morgan from "morgan";
 
 import linkedinRoutes from "../routes/linkedin.routes.js";
 import ownpostRoutes from "../routes/ownpost.routes.js";
+import concurrentRoutes from "../routes/concurrent.routes.js";
+import analyseConcurrentRoutes from "../routes/analyse_concurrent.routes.js";
+import keyRoutes from "../routes/key.routes.js";
+import generateRoutes from "../routes/generate.routes.js";
 
 const app = express();
 
-/**
- * ===============================
- * Middlewares
- * ===============================
- */
 
 app.use(cors());
 
@@ -23,11 +22,6 @@ app.use(express.urlencoded({
 
 app.use(morgan("dev"));
 
-/**
- * ===============================
- * Route de test
- * ===============================
- */
 
 app.get("/", (req, res) => {
 
@@ -45,22 +39,19 @@ app.get("/", (req, res) => {
 
 });
 
-/**
- * ===============================
- * Routes API
- * ===============================
- */
 
 app.use("/linkedin", linkedinRoutes);
 
-// Nouvelle brique : mes propres postes (collection mes_postes)
 app.use("/ownposts", ownpostRoutes);
 
-/**
- * ===============================
- * Route inexistante
- * ===============================
- */
+app.use("/concurrents", concurrentRoutes);
+
+app.use("/analyse-concurrent", analyseConcurrentRoutes);
+
+app.use("/keys", keyRoutes);
+
+app.use("/generate", generateRoutes);
+
 
 app.use((req, res) => {
 
@@ -74,11 +65,6 @@ app.use((req, res) => {
 
 });
 
-/**
- * ===============================
- * Gestion globale des erreurs
- * ===============================
- */
 
 app.use((err, req, res, next) => {
 

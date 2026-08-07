@@ -10,12 +10,7 @@ import {
     deletePublication
 } from "../repositories/publication.repository.js";
 
-/**
- * Synchroniser les publications d'un profil LinkedIn
- * avec Bright Data puis MongoDB.
- *
- * POST /linkedin/posts/sync
- */
+
 export async function syncPosts(req, res) {
 
     try {
@@ -78,12 +73,7 @@ export async function syncPosts(req, res) {
 
 }
 
-/**
- * Lire directement les publications depuis Bright Data
- * sans les sauvegarder.
- *
- * POST /linkedin/posts
- */
+
 export async function fetchPosts(req, res) {
 
     try {
@@ -139,29 +129,7 @@ export async function fetchPosts(req, res) {
 
 }
 
-/**
- * Nouvelle fonction.
- *
- * Lire les publications d'un profil LinkedIn
- * selon une période et un nombre maximum.
- *
- * Les publications sont triées selon
- * le nombre total d'interactions.
- *
- * Toutes les publications récupérées sont
- * enregistrées ou mises à jour dans MongoDB.
- *
- * POST /linkedin/posts/filter
- *
- * Exemple :
- *
- * {
- *   "profileUrl": "https://www.linkedin.com/in/example/",
- *   "startDate": "2026-01-01",
- *   "endDate": "2026-07-12",
- *   "count": 5
- * }
- */
+
 export async function fetchFilteredPosts(
     req,
     res
@@ -214,10 +182,7 @@ export async function fetchFilteredPosts(
 
             );
 
-        /**
-         * La collecte Bright Data
-         * est asynchrone.
-         */
+      
         if (result.async) {
 
             return res.status(202).json(
@@ -239,10 +204,7 @@ export async function fetchFilteredPosts(
             error
         );
 
-        /**
-         * Les erreurs de validation
-         * retournent le statut 400.
-         */
+        
         if (
             error.message.includes(
                 "Date invalide"
@@ -282,12 +244,7 @@ export async function fetchFilteredPosts(
 
 }
 
-/**
- * Lire toutes les publications enregistrées
- * dans MongoDB.
- *
- * GET /linkedin/posts
- */
+
 export async function getAllPosts(req, res) {
 
     try {
@@ -328,11 +285,7 @@ export async function getAllPosts(req, res) {
 
 }
 
-/**
- * Lire une publication par son id.
- *
- * GET /linkedin/posts/:id
- */
+
 export async function getPostById(req, res) {
 
     try {
@@ -385,11 +338,7 @@ export async function getPostById(req, res) {
 
 }
 
-/**
- * Supprimer une publication.
- *
- * DELETE /linkedin/posts/:id
- */
+
 export async function removePost(req, res) {
 
     try {

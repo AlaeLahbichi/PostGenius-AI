@@ -17,13 +17,7 @@ import {
   getScheduleStatus,
 } from "../services/schedule.service.js";
 
-/**
- * Synchroniser MES postes LinkedIn.
- * Bright Data -> MongoDB (collection mes_postes) avec historique.
- *
- * POST /ownposts/sync
- * body : { profileUrl, startDate?, endDate? }
- */
+
 export async function syncMyPosts(req, res) {
   try {
     const { profileUrl, startDate = null, endDate = null } = req.body;
@@ -45,11 +39,7 @@ export async function syncMyPosts(req, res) {
   }
 }
 
-/**
- * Lire tous mes postes enregistrés.
- *
- * GET /ownposts
- */
+
 export async function getAllMyPosts(req, res) {
   try {
     res.set("Cache-Control", "no-store");
@@ -61,11 +51,6 @@ export async function getAllMyPosts(req, res) {
   }
 }
 
-/**
- * Statistiques globales + évolution.
- *
- * GET /ownposts/stats/global
- */
 export async function getGlobalStats(req, res) {
   try {
     res.set("Cache-Control", "no-store");
@@ -77,12 +62,7 @@ export async function getGlobalStats(req, res) {
   }
 }
 
-/**
- * Comparer deux postes.
- *
- * POST /ownposts/compare
- * body : { postIdA, postIdB }
- */
+
 export async function compareMyPosts(req, res) {
   try {
     const { postIdA, postIdB } = req.body;
@@ -96,11 +76,7 @@ export async function compareMyPosts(req, res) {
   }
 }
 
-/**
- * Détail + évolution d'un poste.
- *
- * GET /ownposts/:id/history
- */
+
 export async function getMyPostEvolution(req, res) {
   try {
     const result = await getOwnPostEvolution(req.params.id);
@@ -114,11 +90,7 @@ export async function getMyPostEvolution(req, res) {
   }
 }
 
-/**
- * Lire un poste par son id.
- *
- * GET /ownposts/:id
- */
+
 export async function getMyPostById(req, res) {
   try {
     const post = await findOwnPostById(req.params.id);
@@ -132,11 +104,7 @@ export async function getMyPostById(req, res) {
   }
 }
 
-/**
- * Supprimer un poste.
- *
- * DELETE /ownposts/:id
- */
+
 export async function removeMyPost(req, res) {
   try {
     const result = await deleteOwnPost(req.params.id);
@@ -150,16 +118,7 @@ export async function removeMyPost(req, res) {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Synchronisation automatique (planificateur côté serveur)           */
-/* ------------------------------------------------------------------ */
 
-/**
- * Activer l'auto-sync (tourne côté serveur, survit au refresh).
- *
- * POST /ownposts/schedule/start
- * body : { profileUrl, minutes? }
- */
 export async function startAutoSync(req, res) {
   try {
     const { profileUrl, minutes = 5 } = req.body;
@@ -174,11 +133,7 @@ export async function startAutoSync(req, res) {
   }
 }
 
-/**
- * Désactiver l'auto-sync.
- *
- * POST /ownposts/schedule/stop
- */
+
 export async function stopAutoSync(req, res) {
   try {
     return res.status(200).json(stopSchedule());
@@ -188,11 +143,7 @@ export async function stopAutoSync(req, res) {
   }
 }
 
-/**
- * État du planificateur (running, prochaine exécution, etc.).
- *
- * GET /ownposts/schedule/status
- */
+
 export async function getAutoSyncStatus(req, res) {
   try {
     res.set("Cache-Control", "no-store");
