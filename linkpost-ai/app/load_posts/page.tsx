@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { Logo } from "../theme";
 
 const SITE_NAME = "PostGenius AI";
-const API_URL = "http://localhost:3000/linkedin/posts/filter";
+const API_URL = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000") + "/linkedin/posts/filter";
 
 const NAV_LINKS = [
   { label: "Accueil", href: "/" },
@@ -47,17 +48,6 @@ type ToastState = { type: "success" | "error"; message: string } | null;
 /* ------------------------------------------------------------------ */
 /*  Icons                                                               */
 /* ------------------------------------------------------------------ */
-function LogoMark() {
-  return (
-    <div
-      className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white shadow-[0_0_24px_-6px_rgba(37,99,235,0.6)]"
-      style={{ background: "linear-gradient(135deg, #2563eb, #7c3aed)" }}
-    >
-      P
-    </div>
-  );
-}
-
 function HeartIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -125,21 +115,16 @@ function SpinnerIcon() {
 /* ------------------------------------------------------------------ */
 function Navbar() {
   return (
-    <header className="sticky top-0 z-50 border-b border-[#1f2937] bg-[#050814]/80 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-[#2f2650] bg-[#0d0a1a]/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2.5">
-          <LogoMark />
-          <span className="text-[15px] font-semibold tracking-tight text-[#f8fafc]">
-            {SITE_NAME}
-          </span>
-        </Link>
+        <Logo size={36} textSize={15} />
 
         <nav className="hidden items-center gap-8 md:flex">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm text-[#94a3b8] transition-colors hover:text-[#f8fafc]"
+              className="text-sm text-[#a79bc4] transition-colors hover:text-[#f8fafc]"
             >
               {link.label}
             </Link>
@@ -151,9 +136,9 @@ function Navbar() {
 
         <div className="flex items-center gap-3">
           <Link
-            href="/signup"
+            href="/create"
             className="rounded-lg px-4 py-2 text-sm font-medium text-white shadow-[0_0_20px_-6px_rgba(124,58,237,0.6)] transition-transform hover:scale-[1.03]"
-            style={{ background: "linear-gradient(135deg, #2563eb, #7c3aed)" }}
+            style={{ background: "linear-gradient(135deg, #2563eb, #8b5cf6)" }}
           >
             Essayer
           </Link>
@@ -175,7 +160,7 @@ function Toast({ toast, onClose }: { toast: ToastState; onClose: () => void }) {
       <div
         className="flex items-start gap-3 rounded-xl border p-4 shadow-2xl backdrop-blur-md"
         style={{
-          background: "#111827",
+          background: "#1c1533",
           borderColor: isSuccess ? "rgba(34,197,94,0.35)" : "rgba(252,165,165,0.35)",
         }}
       >
@@ -191,7 +176,7 @@ function Toast({ toast, onClose }: { toast: ToastState; onClose: () => void }) {
         <p className="flex-1 text-sm leading-relaxed text-[#f8fafc]">{toast.message}</p>
         <button
           onClick={onClose}
-          className="text-[#94a3b8] transition-colors hover:text-[#f8fafc]"
+          className="text-[#a79bc4] transition-colors hover:text-[#f8fafc]"
           aria-label="Fermer la notification"
         >
           ✕
@@ -260,10 +245,10 @@ function FilterForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-5 rounded-2xl border border-[#1f2937] bg-[#111827] p-6 sm:p-8"
+      className="flex flex-col gap-5 rounded-2xl border border-[#2f2650] bg-[#1c1533] p-6 sm:p-8"
     >
       <div className="flex flex-col gap-2">
-        <label htmlFor="profileUrl" className="text-xs font-medium text-[#94a3b8]">
+        <label htmlFor="profileUrl" className="text-xs font-medium text-[#a79bc4]">
           URL du profil LinkedIn <span className="text-[#fca5a5]">*</span>
         </label>
         <input
@@ -272,13 +257,13 @@ function FilterForm({
           value={profileUrl}
           onChange={(e) => setProfileUrl(e.target.value)}
           placeholder="https://www.linkedin.com/in/votre-profil/"
-          className="rounded-lg border border-[#1f2937] bg-[#0b1020] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#475569] outline-none transition-colors focus:border-[#2563eb]"
+          className="rounded-lg border border-[#2f2650] bg-[#16112b] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#5b5178] outline-none transition-colors focus:border-[#2563eb]"
         />
       </div>
 
       <div className="grid gap-5 sm:grid-cols-3">
         <div className="flex flex-col gap-2">
-          <label htmlFor="startDate" className="text-xs font-medium text-[#94a3b8]">
+          <label htmlFor="startDate" className="text-xs font-medium text-[#a79bc4]">
             Date de début
           </label>
           <input
@@ -286,11 +271,11 @@ function FilterForm({
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="rounded-lg border border-[#1f2937] bg-[#0b1020] px-3.5 py-2.5 text-sm text-[#f8fafc] outline-none transition-colors [color-scheme:dark] focus:border-[#2563eb]"
+            className="rounded-lg border border-[#2f2650] bg-[#16112b] px-3.5 py-2.5 text-sm text-[#f8fafc] outline-none transition-colors [color-scheme:dark] focus:border-[#2563eb]"
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label htmlFor="endDate" className="text-xs font-medium text-[#94a3b8]">
+          <label htmlFor="endDate" className="text-xs font-medium text-[#a79bc4]">
             Date de fin
           </label>
           <input
@@ -298,11 +283,11 @@ function FilterForm({
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="rounded-lg border border-[#1f2937] bg-[#0b1020] px-3.5 py-2.5 text-sm text-[#f8fafc] outline-none transition-colors [color-scheme:dark] focus:border-[#2563eb]"
+            className="rounded-lg border border-[#2f2650] bg-[#16112b] px-3.5 py-2.5 text-sm text-[#f8fafc] outline-none transition-colors [color-scheme:dark] focus:border-[#2563eb]"
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label htmlFor="count" className="text-xs font-medium text-[#94a3b8]">
+          <label htmlFor="count" className="text-xs font-medium text-[#a79bc4]">
             Nombre de posts
           </label>
           <input
@@ -312,7 +297,7 @@ function FilterForm({
             value={count}
             onChange={(e) => setCount(e.target.value)}
             placeholder="Tous"
-            className="rounded-lg border border-[#1f2937] bg-[#0b1020] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#475569] outline-none transition-colors focus:border-[#2563eb]"
+            className="rounded-lg border border-[#2f2650] bg-[#16112b] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#5b5178] outline-none transition-colors focus:border-[#2563eb]"
           />
         </div>
       </div>
@@ -321,7 +306,7 @@ function FilterForm({
         type="submit"
         disabled={loading}
         className="mt-1 flex items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold text-white shadow-[0_0_24px_-6px_rgba(37,99,235,0.6)] transition-transform hover:scale-[1.01] disabled:opacity-60 disabled:hover:scale-100"
-        style={{ background: "linear-gradient(135deg, #2563eb, #7c3aed)" }}
+        style={{ background: "linear-gradient(135deg, #2563eb, #8b5cf6)" }}
       >
         {loading ? (
           <>
@@ -353,12 +338,12 @@ function StatsBar({ data }: { data: FilterResponse }) {
       {stats.map((s) => (
         <div
           key={s.label}
-          className="rounded-xl border border-[#1f2937] bg-[#111827] px-4 py-4 text-center"
+          className="rounded-xl border border-[#2f2650] bg-[#1c1533] px-4 py-4 text-center"
         >
           <p className="text-2xl font-bold" style={{ color: s.color }}>
             {s.value}
           </p>
-          <p className="mt-1 text-xs text-[#94a3b8]">{s.label}</p>
+          <p className="mt-1 text-xs text-[#a79bc4]">{s.label}</p>
         </div>
       ))}
     </div>
@@ -377,9 +362,9 @@ function PostCard({ post }: { post: LinkedInPost }) {
   });
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-[#1f2937] bg-[#111827] transition-transform hover:-translate-y-0.5">
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-[#2f2650] bg-[#1c1533] transition-transform hover:-translate-y-0.5">
       {image && (
-        <div className="h-44 w-full overflow-hidden bg-[#0b1020]">
+        <div className="h-44 w-full overflow-hidden bg-[#16112b]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={image} alt="" className="h-full w-full object-cover" loading="lazy" />
         </div>
@@ -387,7 +372,7 @@ function PostCard({ post }: { post: LinkedInPost }) {
 
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-[#94a3b8]">{formattedDate}</span>
+          <span className="text-xs text-[#a79bc4]">{formattedDate}</span>
           {post.total_interactions !== undefined && (
             <span
               className="rounded-full px-2.5 py-1 text-xs font-medium"
@@ -402,7 +387,7 @@ function PostCard({ post }: { post: LinkedInPost }) {
           <h3 className="line-clamp-2 text-sm font-semibold text-[#f8fafc]">{post.headline}</h3>
         )}
 
-        <p className="line-clamp-4 whitespace-pre-line text-sm leading-relaxed text-[#94a3b8]">
+        <p className="line-clamp-4 whitespace-pre-line text-sm leading-relaxed text-[#a79bc4]">
           {post.post_text}
         </p>
 
@@ -420,8 +405,8 @@ function PostCard({ post }: { post: LinkedInPost }) {
           </div>
         )}
 
-        <div className="mt-auto flex items-center justify-between border-t border-[#1f2937] pt-3">
-          <div className="flex items-center gap-4 text-xs text-[#94a3b8]">
+        <div className="mt-auto flex items-center justify-between border-t border-[#2f2650] pt-3">
+          <div className="flex items-center gap-4 text-xs text-[#a79bc4]">
             <span className="flex items-center gap-1.5">
               <HeartIcon /> {post.num_likes}
             </span>
@@ -448,7 +433,7 @@ function PostCard({ post }: { post: LinkedInPost }) {
 /* ------------------------------------------------------------------ */
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[#1f2937] bg-[#111827]/40 px-8 py-16 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[#2f2650] bg-[#1c1533]/40 px-8 py-16 text-center">
       <div
         className="flex h-11 w-11 items-center justify-center rounded-full"
         style={{ background: "rgba(37,99,235,0.12)", color: "#38bdf8" }}
@@ -456,7 +441,7 @@ function EmptyState() {
         <SparkIcon />
       </div>
       <h3 className="text-base font-semibold text-[#f8fafc]">Aucun post chargé pour l&apos;instant</h3>
-      <p className="max-w-sm text-sm text-[#94a3b8]">
+      <p className="max-w-sm text-sm text-[#a79bc4]">
         Renseignez l&apos;URL d&apos;un profil LinkedIn ci-dessus et lancez la récupération pour voir apparaître les posts ici.
       </p>
     </div>
@@ -490,7 +475,7 @@ export default function LinkedInPostsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050814]">
+    <div className="min-h-screen bg-[#0d0a1a]">
       <Navbar />
       <Toast toast={toast} onClose={() => setToast(null)} />
 
@@ -498,11 +483,11 @@ export default function LinkedInPostsPage() {
         <div
           aria-hidden
           className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[420px] w-[720px] -translate-x-1/2 rounded-full opacity-25 blur-[110px]"
-          style={{ background: "linear-gradient(135deg, #2563eb, #7c3aed)" }}
+          style={{ background: "linear-gradient(135deg, #2563eb, #8b5cf6)" }}
         />
 
         <div className="mx-auto max-w-2xl text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#1f2937] bg-[#111827] px-3 py-1 text-xs font-medium text-[#38bdf8]">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#2f2650] bg-[#1c1533] px-3 py-1 text-xs font-medium text-[#38bdf8]">
             Import LinkedIn
           </span>
           <h1 className="mt-5 text-3xl font-bold tracking-tight text-[#f8fafc] sm:text-4xl">
@@ -514,7 +499,7 @@ export default function LinkedInPostsPage() {
               qui marchent
             </span>
           </h1>
-          <p className="mt-4 text-base text-[#94a3b8]">
+          <p className="mt-4 text-base text-[#a79bc4]">
             Entrez l&apos;URL d&apos;un profil LinkedIn pour analyser ses posts avec {SITE_NAME}.
           </p>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Logo } from "../theme";
 import {
   ResponsiveContainer,
   BarChart,
@@ -26,21 +27,21 @@ const API_KEYS = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000") +
 /* ============================ Charte ============================ */
 
 const C = {
-  bgMain: "#050814",
-  bgSecondary: "#0b1020",
-  card: "#111827",
-  border: "#1f2937",
+  bgMain: "#0d0a1a",
+  bgSecondary: "#16112b",
+  card: "#1c1533",
+  border: "#2f2650",
   textMain: "#f8fafc",
-  textSecondary: "#94a3b8",
+  textSecondary: "#a79bc4",
   blue: "#2563eb",
   cyan: "#38bdf8",
-  violet: "#7c3aed",
+  violet: "#8b5cf6",
   mauve: "#a855f7",
   green: "#22c55e",
   amber: "#fbbf24",
   red: "#fca5a5",
 };
-const GRAD = "linear-gradient(135deg, #2563eb, #7c3aed)";
+const GRAD = "linear-gradient(135deg, #2563eb, #8b5cf6)";
 
 /* ============================ Types ============================ */
 
@@ -89,7 +90,7 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload || !payload.length) return null;
   return (
-    <div style={{ background: "#0b1225", border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px", fontSize: 12.5, color: C.textMain, boxShadow: "0 10px 30px -12px rgba(0,0,0,.8)" }}>
+    <div style={{ background: "#150f28", border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px", fontSize: 12.5, color: C.textMain, boxShadow: "0 10px 30px -12px rgba(0,0,0,.8)" }}>
       <div style={{ fontWeight: 700, marginBottom: 6, color: C.textSecondary }}>{label}</div>
       {payload.map((p: any, i: number) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -414,7 +415,12 @@ function Shell({ children }: { children: React.ReactNode }) {
         @media (min-width: 940px) { .charts-2col { grid-template-columns: 1fr 1fr; } }
         table td, table th { white-space: nowrap; }
       `}</style>
-      <div style={{ maxWidth: 1160, margin: "0 auto" }}>{children}</div>
+      <div style={{ maxWidth: 1160, margin: "0 auto" }}>
+        <div style={{ marginBottom: 22 }}>
+          <Logo size={32} textSize={14} />
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

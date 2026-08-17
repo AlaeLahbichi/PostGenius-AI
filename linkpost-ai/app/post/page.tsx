@@ -2,30 +2,32 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Logo } from "../theme";
 
 /* ============================ Config ============================ */
 
 const API = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000") + "/concurrents";
 const API_ANALYSE = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000") + "/analyse-concurrent";
+const API_OWNPOSTS = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000") + "/ownposts";
 
 /* ============================ Charte ============================ */
 
 const C = {
-  bgMain: "#050814",
-  bgSecondary: "#0b1020",
-  card: "#111827",
-  border: "#1f2937",
+  bgMain: "#0d0a1a",
+  bgSecondary: "#16112b",
+  card: "#1c1533",
+  border: "#2f2650",
   textMain: "#f8fafc",
-  textSecondary: "#94a3b8",
+  textSecondary: "#a79bc4",
   blue: "#2563eb",
   cyan: "#38bdf8",
-  violet: "#7c3aed",
+  violet: "#8b5cf6",
   mauve: "#a855f7",
   green: "#22c55e",
   amber: "#fbbf24",
   red: "#fca5a5",
 };
-const GRAD = "linear-gradient(135deg, #2563eb, #7c3aed)";
+const GRAD = "linear-gradient(135deg, #2563eb, #8b5cf6)";
 
 /* ============================ Types ============================ */
 
@@ -171,7 +173,7 @@ function Metric({ icon, value, color, label }: { icon: string; value: number; co
 }
 
 function Pills({ items, color }: { items?: string[]; color: string }) {
-  if (!items || items.length === 0) return <span style={{ color: "#475569", fontSize: 13 }}>—</span>;
+  if (!items || items.length === 0) return <span style={{ color: "#5b5178", fontSize: 13 }}>—</span>;
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
       {items.map((it, i) => (
@@ -200,6 +202,8 @@ function Divider() {
 function PostDetail() {
   const router = useRouter();
   const id = useSearchParams().get("id");
+  // "own" = poste personnel (mes_postes, via /ownposts) ; sinon poste concurrent.
+  const source = useSearchParams().get("source") === "own" ? "own" : "concurrent";
 
   const [post, setPost] = useState<Post | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -218,22 +222,33 @@ function PostDetail() {
       setLoading(true);
       setError(null);
       try {
-        // 1) Récupérer le post par son id (dans les posts importés).
-        const resPosts = await fetch(`${API}/posts`);
-        const jp = await resPosts.json();
-        const found: Post | undefined = (jp.posts || []).find((p: Post) => String(p.id) === String(id));
-        if (!found) throw new Error("Post introuvable. Il a peut-être été supprimé lors d'un ré-import.");
-        if (!cancelled) setPost(found);
-
-        // 2) Récupérer l'analyse si elle existe (404 = pas encore analysé).
-        try {
-          const resA = await fetch(`${API_ANALYSE}/${encodeURIComponent(String(id))}`);
-          if (resA.ok) {
-            const ja = await resA.json();
-            if (!cancelled && ja.success) setAnalysis(ja.analysis);
+        if (source === "own") {
+          // Poste personnel : récupéré directement par id, pas d'analyse
+          // concurrentielle associée (elle ne s'applique qu'aux concurrents).
+          const res = await fetch(`${API_OWNPOSTS}/${encodeURIComponent(String(id))}`);
+          const json = await res.json();
+          if (!res.ok || !json.success || !json.post) {
+            throw new Error(json.message || "Post introuvable. Il a peut-être été supprimé.");
           }
-        } catch {
-          /* best-effort */
+          if (!cancelled) setPost(json.post);
+        } else {
+          // 1) Récupérer le post par son id (dans les posts importés).
+          const resPosts = await fetch(`${API}/posts`);
+          const jp = await resPosts.json();
+          const found: Post | undefined = (jp.posts || []).find((p: Post) => String(p.id) === String(id));
+          if (!found) throw new Error("Post introuvable. Il a peut-être été supprimé lors d'un ré-import.");
+          if (!cancelled) setPost(found);
+
+          // 2) Récupérer l'analyse si elle existe (404 = pas encore analysé).
+          try {
+            const resA = await fetch(`${API_ANALYSE}/${encodeURIComponent(String(id))}`);
+            if (resA.ok) {
+              const ja = await resA.json();
+              if (!cancelled && ja.success) setAnalysis(ja.analysis);
+            }
+          } catch {
+            /* best-effort */
+          }
         }
       } catch (e: any) {
         if (!cancelled) setError(e?.message || "Erreur de chargement.");
@@ -244,11 +259,11 @@ function PostDetail() {
 
     load();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, source]);
 
   const goBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) router.back();
-    else router.push("/concurrents");
+    else router.push(source === "own" ? "/posts" : "/concurrent");
   };
 
   /* ---------- États ---------- */
@@ -352,15 +367,33 @@ function PostDetail() {
           </div>
         </div>
 
-        {/* ---------- Colonne analyse ---------- */}
+        {/* ---------- Colonne analyse / détails ---------- */}
         <div style={{ position: "relative" }}>
           <div className="analysis-sticky" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 9, background: "linear-gradient(135deg,#2563eb,#a855f7)", display: "grid", placeItems: "center", color: "#fff", fontSize: 15 }}>✦</div>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Analyse du post</h2>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: "linear-gradient(135deg,#2563eb,#a855f7)", display: "grid", placeItems: "center", color: "#fff", fontSize: 15 }}>{source === "own" ? "ℹ" : "✦"}</div>
+              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{source === "own" ? "Détails de la publication" : "Analyse du post"}</h2>
             </div>
 
-            {!analysis ? (
+            {source === "own" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <Field label="Type de post">{post.post_type || "—"}</Field>
+                <Divider />
+                <Field label="Auteur">{post.user_name || "—"}</Field>
+                {typeof post.user_followers === "number" && (
+                  <Field label="Abonnés">{post.user_followers.toLocaleString("fr-FR")}</Field>
+                )}
+                <Divider />
+                <Field label="Publié le">{date || "—"}</Field>
+                {post.url && (
+                  <Field label="Lien LinkedIn">
+                    <a href={post.url} target="_blank" rel="noreferrer" style={{ color: C.cyan }}>
+                      Ouvrir la publication ↗
+                    </a>
+                  </Field>
+                )}
+              </div>
+            ) : !analysis ? (
               <div style={{ background: C.bgSecondary, border: `1px dashed ${C.border}`, borderRadius: 14, padding: "22px 18px", textAlign: "center", color: C.textSecondary, fontSize: 13.5, lineHeight: 1.6 }}>
                 Ce post n'a pas encore été analysé.
                 <br />
@@ -466,7 +499,7 @@ export default function PostPage() {
         .pg-nav:hover { background: rgba(5,8,20,.82); }
         .pg-dot { transition: width .25s ease, background .25s ease; }
         .back-btn { transition: border-color .18s ease, transform .1s ease; }
-        .back-btn:hover { border-color: #2b3a52; }
+        .back-btn:hover { border-color: #3d3160; }
         .back-btn:active { transform: scale(.98); }
         @media (hover: none) { .pg-nav { opacity: 1; } }
         @media (prefers-reduced-motion: reduce) {
@@ -475,6 +508,9 @@ export default function PostPage() {
       `}</style>
 
       <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+        <div style={{ marginBottom: 22 }}>
+          <Logo size={32} textSize={14} />
+        </div>
         <Suspense
           fallback={
             <div style={{ display: "flex", justifyContent: "center", padding: "120px 0", color: C.textSecondary }}>Chargement…</div>

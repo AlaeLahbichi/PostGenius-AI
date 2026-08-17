@@ -2,25 +2,26 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Logo } from "../theme";
 
 const API = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000") + "/generate";
 
 const C = {
-  bgMain: "#050814",
-  bgSecondary: "#0b1020",
-  card: "#111827",
-  border: "#1f2937",
+  bgMain: "#0d0a1a",
+  bgSecondary: "#16112b",
+  card: "#1c1533",
+  border: "#2f2650",
   textMain: "#f8fafc",
-  textSecondary: "#94a3b8",
+  textSecondary: "#a79bc4",
   blue: "#2563eb",
   cyan: "#38bdf8",
-  violet: "#7c3aed",
+  violet: "#8b5cf6",
   mauve: "#a855f7",
   green: "#22c55e",
   amber: "#fbbf24",
   red: "#fca5a5",
 };
-const GRAD = "linear-gradient(135deg, #2563eb, #7c3aed)";
+const GRAD = "linear-gradient(135deg, #2563eb, #8b5cf6)";
 
 type Val = { value: string; slug: string; usage_count: number; post_count: number };
 type Reco = { value: string; reason: string };
@@ -332,11 +333,12 @@ export default function GeneratePage() {
     }
   }
 
-  async function save(status: "brouillon" | "shared") {
+  async function save(publish: boolean) {
     setSaving(true);
     setError(null);
     setNotice(null);
     try {
+      // L'enregistrement se fait toujours en brouillon côté serveur.
       const res = await fetch(`${API}/save`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -352,7 +354,6 @@ export default function GeneratePage() {
           tones: sel.tones,
           formats: sel.formats,
           post_text: generated,
-          status,
         }),
       });
       const json = await res.json();
@@ -360,7 +361,25 @@ export default function GeneratePage() {
         setError(json.message || "Sauvegarde impossible.");
         return;
       }
-      setNotice(status === "shared" ? "Post enregistré et marqué « partagé »." : "Post enregistré en brouillon.");
+
+      if (!publish) {
+        setNotice("Post enregistré en brouillon.");
+        setSaved(true);
+        return;
+      }
+
+      // "Partager" = publication réelle sur LinkedIn, puis passage en "shared".
+      const shareRes = await fetch(`${API}/created/${json.id}/share`, { method: "POST" });
+      const shareJson = await shareRes.json();
+      if (!shareJson.success) {
+        setError(
+          `Post enregistré en brouillon, mais la publication LinkedIn a échoué : ${shareJson.message || "erreur inconnue."}`
+        );
+        setSaved(true);
+        return;
+      }
+
+      setNotice("Post publié sur LinkedIn !");
       setSaved(true);
     } catch (e: any) {
       setError(e?.message || "Erreur de sauvegarde.");
@@ -399,11 +418,15 @@ export default function GeneratePage() {
       <style>{`
         .gen-bar-fill { transition: width .5s cubic-bezier(.22,.61,.36,1); }
         .gen-dot { transition: background .3s ease, color .3s ease, border-color .3s ease; }
-        textarea::-webkit-scrollbar { width: 8px; } textarea::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 8px; }
+        textarea::-webkit-scrollbar { width: 8px; } textarea::-webkit-scrollbar-thumb { background: #2f2650; border-radius: 8px; }
         @media (prefers-reduced-motion: reduce) { .gen-bar-fill { transition: none; } }
       `}</style>
 
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <div style={{ marginBottom: 22 }}>
+          <Logo size={32} textSize={14} />
+        </div>
+
         {/* En-tête */}
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
           <div style={{ width: 46, height: 46, borderRadius: 12, background: GRAD, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 20 }}>✦</div>
@@ -529,11 +552,11 @@ export default function GeneratePage() {
                     ← Retour au dashboard
                   </button>
                 )}
-                <button onClick={() => save("brouillon")} disabled={saving || !generated.trim()} style={{ background: "transparent", color: C.amber, border: `1px solid ${C.amber}`, borderRadius: 12, padding: "11px 20px", fontWeight: 700, fontSize: 14, cursor: saving || !generated.trim() ? "not-allowed" : "pointer", opacity: !generated.trim() ? 0.5 : 1 }}>
+                <button onClick={() => save(false)} disabled={saving || !generated.trim()} style={{ background: "transparent", color: C.amber, border: `1px solid ${C.amber}`, borderRadius: 12, padding: "11px 20px", fontWeight: 700, fontSize: 14, cursor: saving || !generated.trim() ? "not-allowed" : "pointer", opacity: !generated.trim() ? 0.5 : 1 }}>
                   Enregistrer en brouillon
                 </button>
-                <button onClick={() => save("shared")} disabled={saving || !generated.trim()} style={{ background: GRAD, color: "#fff", border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, fontSize: 14, cursor: saving || !generated.trim() ? "not-allowed" : "pointer", opacity: !generated.trim() ? 0.5 : 1 }}>
-                  Partager
+                <button onClick={() => save(true)} disabled={saving || !generated.trim()} style={{ background: GRAD, color: "#fff", border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, fontSize: 14, cursor: saving || !generated.trim() ? "not-allowed" : "pointer", opacity: !generated.trim() ? 0.5 : 1 }}>
+                  {saving ? "Publication…" : "Publier sur LinkedIn"}
                 </button>
               </div>
             </div>
@@ -568,8 +591,8 @@ export default function GeneratePage() {
 const inputStyle: React.CSSProperties = {
   width: "100%",
   marginTop: 6,
-  background: "#0b1020",
-  border: "1px solid #1f2937",
+  background: "#16112b",
+  border: "1px solid #2f2650",
   borderRadius: 10,
   color: "#f8fafc",
   padding: "10px 12px",

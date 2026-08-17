@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { Logo } from "../theme";
 
 const SITE_NAME = "PostGenius AI";
 const CONTACT_EMAIL = "a.lahbichi2004@gmail.com";
@@ -15,17 +16,6 @@ const NAV_LINKS = [
 /* ------------------------------------------------------------------ */
 /*  Icons (inline, no extra deps)                                      */
 /* ------------------------------------------------------------------ */
-function LogoMark() {
-  return (
-    <div
-      className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white shadow-[0_0_24px_-6px_rgba(37,99,235,0.6)]"
-      style={{ background: "linear-gradient(135deg, #2563eb, #7c3aed)" }}
-    >
-      P
-    </div>
-  );
-}
-
 function MailIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -66,21 +56,16 @@ function CheckIcon() {
 /* ------------------------------------------------------------------ */
 function Navbar() {
   return (
-    <header className="sticky top-0 z-50 border-b border-[#1f2937] bg-[#050814]/80 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-[#2f2650] bg-[#0d0a1a]/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2.5">
-          <LogoMark />
-          <span className="text-[15px] font-semibold tracking-tight text-[#f8fafc]">
-            {SITE_NAME}
-          </span>
-        </Link>
+        <Logo size={36} textSize={15} />
 
         <nav className="hidden items-center gap-8 md:flex">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm text-[#94a3b8] transition-colors hover:text-[#f8fafc]"
+              className="text-sm text-[#a79bc4] transition-colors hover:text-[#f8fafc]"
             >
               {link.label}
             </Link>
@@ -96,14 +81,14 @@ function Navbar() {
         <div className="flex items-center gap-3">
           {/* Ceci est un commentaire JSX<Link
             href="/login"
-            className="hidden text-sm text-[#94a3b8] transition-colors hover:text-[#f8fafc] sm:block"
+            className="hidden text-sm text-[#a79bc4] transition-colors hover:text-[#f8fafc] sm:block"
           >
             Se connecter
           </Link>*/}
           <Link
-            href="/signup"
+            href="/create"
             className="rounded-lg px-4 py-2 text-sm font-medium text-white shadow-[0_0_20px_-6px_rgba(124,58,237,0.6)] transition-transform hover:scale-[1.03]"
-            style={{ background: "linear-gradient(135deg, #2563eb, #7c3aed)" }}
+            style={{ background: "linear-gradient(135deg, #2563eb, #8b5cf6)" }}
           >
             Essayer
           </Link>
@@ -147,7 +132,7 @@ function ContactForm() {
 
   if (status === "success") {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-[#1f2937] bg-[#111827] px-8 py-16 text-center">
+      <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-[#2f2650] bg-[#1c1533] px-8 py-16 text-center">
         <div
           className="flex h-12 w-12 items-center justify-center rounded-full text-[#22c55e]"
           style={{ background: "rgba(34,197,94,0.12)" }}
@@ -155,7 +140,7 @@ function ContactForm() {
           <CheckIcon />
         </div>
         <h3 className="text-lg font-semibold text-[#f8fafc]">Message envoyé</h3>
-        <p className="max-w-sm text-sm text-[#94a3b8]">
+        <p className="max-w-sm text-sm text-[#a79bc4]">
           Merci de nous avoir écrit. On vous répond généralement sous 24 à 48h à l&apos;adresse indiquée.
         </p>
         <button
@@ -174,11 +159,11 @@ function ContactForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-5 rounded-2xl border border-[#1f2937] bg-[#111827] p-6 sm:p-8"
+      className="flex flex-col gap-5 rounded-2xl border border-[#2f2650] bg-[#1c1533] p-6 sm:p-8"
     >
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
-          <label htmlFor="name" className="text-xs font-medium text-[#94a3b8]">
+          <label htmlFor="name" className="text-xs font-medium text-[#a79bc4]">
             Nom
           </label>
           <input
@@ -187,11 +172,11 @@ function ContactForm() {
             value={form.name}
             onChange={update("name")}
             placeholder="Votre nom"
-            className="rounded-lg border border-[#1f2937] bg-[#0b1020] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#475569] outline-none transition-colors focus:border-[#2563eb]"
+            className="rounded-lg border border-[#2f2650] bg-[#16112b] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#5b5178] outline-none transition-colors focus:border-[#2563eb]"
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label htmlFor="email" className="text-xs font-medium text-[#94a3b8]">
+          <label htmlFor="email" className="text-xs font-medium text-[#a79bc4]">
             Email
           </label>
           <input
@@ -201,13 +186,13 @@ function ContactForm() {
             value={form.email}
             onChange={update("email")}
             placeholder="vous@exemple.com"
-            className="rounded-lg border border-[#1f2937] bg-[#0b1020] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#475569] outline-none transition-colors focus:border-[#2563eb]"
+            className="rounded-lg border border-[#2f2650] bg-[#16112b] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#5b5178] outline-none transition-colors focus:border-[#2563eb]"
           />
         </div>
       </div>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="subject" className="text-xs font-medium text-[#94a3b8]">
+        <label htmlFor="subject" className="text-xs font-medium text-[#a79bc4]">
           Sujet
         </label>
         <input
@@ -216,12 +201,12 @@ function ContactForm() {
           value={form.subject}
           onChange={update("subject")}
           placeholder="Question, partenariat, bug…"
-          className="rounded-lg border border-[#1f2937] bg-[#0b1020] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#475569] outline-none transition-colors focus:border-[#2563eb]"
+          className="rounded-lg border border-[#2f2650] bg-[#16112b] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#5b5178] outline-none transition-colors focus:border-[#2563eb]"
         />
       </div>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="message" className="text-xs font-medium text-[#94a3b8]">
+        <label htmlFor="message" className="text-xs font-medium text-[#a79bc4]">
           Message
         </label>
         <textarea
@@ -231,7 +216,7 @@ function ContactForm() {
           value={form.message}
           onChange={update("message")}
           placeholder="Décrivez votre demande en quelques lignes…"
-          className="resize-none rounded-lg border border-[#1f2937] bg-[#0b1020] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#475569] outline-none transition-colors focus:border-[#2563eb]"
+          className="resize-none rounded-lg border border-[#2f2650] bg-[#16112b] px-3.5 py-2.5 text-sm text-[#f8fafc] placeholder:text-[#5b5178] outline-none transition-colors focus:border-[#2563eb]"
         />
       </div>
 
@@ -250,7 +235,7 @@ function ContactForm() {
         type="submit"
         disabled={status === "loading"}
         className="mt-1 flex items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold text-white shadow-[0_0_24px_-6px_rgba(37,99,235,0.6)] transition-transform hover:scale-[1.01] disabled:opacity-60"
-        style={{ background: "linear-gradient(135deg, #2563eb, #7c3aed)" }}
+        style={{ background: "linear-gradient(135deg, #2563eb, #8b5cf6)" }}
       >
         {status === "loading" ? "Envoi en cours…" : "Envoyer le message"}
       </button>
@@ -282,14 +267,14 @@ function InfoCard() {
   ];
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-[#1f2937] bg-[#111827] p-6 sm:p-8">
-      <div className="mb-1 inline-flex w-fit items-center gap-1.5 rounded-full border border-[#1f2937] bg-[#0b1020] px-3 py-1 text-xs font-medium text-[#38bdf8]">
+    <div className="flex flex-col gap-4 rounded-2xl border border-[#2f2650] bg-[#1c1533] p-6 sm:p-8">
+      <div className="mb-1 inline-flex w-fit items-center gap-1.5 rounded-full border border-[#2f2650] bg-[#16112b] px-3 py-1 text-xs font-medium text-[#38bdf8]">
         Contact
       </div>
       <h2 className="text-xl font-semibold text-[#f8fafc]">
         On vous écoute
       </h2>
-      <p className="text-sm leading-relaxed text-[#94a3b8]">
+      <p className="text-sm leading-relaxed text-[#a79bc4]">
         Une question sur la génération de posts, un bug, une idée de fonctionnalité ?
         Écrivez-nous, une vraie personne vous répond.
       </p>
@@ -297,7 +282,7 @@ function InfoCard() {
       <div className="mt-2 flex flex-col gap-4">
         {items.map((item) => {
           const content = (
-            <div className="flex items-start gap-3 rounded-xl border border-[#1f2937] bg-[#0b1020] p-4">
+            <div className="flex items-start gap-3 rounded-xl border border-[#2f2650] bg-[#16112b] p-4">
               <div
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white"
                 style={{ background: "linear-gradient(135deg, #2563eb, #a855f7)" }}
@@ -306,7 +291,7 @@ function InfoCard() {
               </div>
               <div>
                 <p className="text-sm font-medium text-[#f8fafc]">{item.title}</p>
-                <p className="mt-0.5 text-sm text-[#94a3b8]">{item.desc}</p>
+                <p className="mt-0.5 text-sm text-[#a79bc4]">{item.desc}</p>
               </div>
             </div>
           );
@@ -328,7 +313,7 @@ function InfoCard() {
 /* ------------------------------------------------------------------ */
 export default function ContactPage() {
   return (
-    <div className="min-h-screen bg-[#050814]">
+    <div className="min-h-screen bg-[#0d0a1a]">
       <Navbar />
 
       <main className="relative mx-auto max-w-6xl px-6 pb-24 pt-16 sm:pt-24">
@@ -336,11 +321,11 @@ export default function ContactPage() {
         <div
           aria-hidden
           className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[420px] w-[720px] -translate-x-1/2 rounded-full opacity-25 blur-[110px]"
-          style={{ background: "linear-gradient(135deg, #2563eb, #7c3aed)" }}
+          style={{ background: "linear-gradient(135deg, #2563eb, #8b5cf6)" }}
         />
 
         <div className="mx-auto max-w-2xl text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#1f2937] bg-[#111827] px-3 py-1 text-xs font-medium text-[#38bdf8]">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#2f2650] bg-[#1c1533] px-3 py-1 text-xs font-medium text-[#38bdf8]">
             Contact
           </span>
           <h1 className="mt-5 text-3xl font-bold tracking-tight text-[#f8fafc] sm:text-4xl">
@@ -352,7 +337,7 @@ export default function ContactPage() {
               qui marchent
             </span>
           </h1>
-          <p className="mt-4 text-base text-[#94a3b8]">
+          <p className="mt-4 text-base text-[#a79bc4]">
             Une question, un bug ou une idée pour {SITE_NAME} ? Notre équipe vous répond rapidement.
           </p>
         </div>
@@ -367,15 +352,15 @@ export default function ContactPage() {
         </div>
       </main>
 
-      <footer className="border-t border-[#1f2937] py-8">
+      <footer className="border-t border-[#2f2650] py-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 sm:flex-row">
           <div className="flex items-center gap-2">
-            <LogoMark />
-            <span className="text-sm text-[#94a3b8]">
+            <Logo size={28} showText={false} />
+            <span className="text-sm text-[#a79bc4]">
               © {new Date().getFullYear()} {SITE_NAME}. Tous droits réservés.
             </span>
           </div>
-          <div className="flex items-center gap-6 text-sm text-[#94a3b8]">
+          <div className="flex items-center gap-6 text-sm text-[#a79bc4]">
             <Link href="/" className="hover:text-[#f8fafc]">Accueil</Link>
             <Link href="/#faq" className="hover:text-[#f8fafc]">FAQ</Link>
             <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-[#f8fafc]">{CONTACT_EMAIL}</a>

@@ -2,6 +2,8 @@
 
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Logo } from "../theme";
 import {
   ResponsiveContainer,
   LineChart,
@@ -32,25 +34,24 @@ const REFRESH_INTERVAL = 300; // 5 min (test)
 /* ============================ Charte ============================ */
 
 const C = {
-  bgMain: "#050814",
-  bgSecondary: "#0b1020",
-  card: "#111827",
-  border: "#1f2937",
+  bgMain: "#0d0a1a",
+  bgSecondary: "#16112b",
+  card: "#1c1533",
+  border: "#2f2650",
   textMain: "#f8fafc",
-  textSecondary: "#94a3b8",
+  textSecondary: "#a79bc4",
   blue: "#2563eb",
   cyan: "#38bdf8",
-  violet: "#7c3aed",
+  violet: "#8b5cf6",
   mauve: "#a855f7",
   green: "#22c55e",
   amber: "#fbbf24",
   red: "#fca5a5",
 };
 
-const GRAD_BLUE_VIOLET = "linear-gradient(135deg, #2563eb, #7c3aed)";
+const GRAD_BLUE_VIOLET = "linear-gradient(135deg, #2563eb, #8b5cf6)";
 const GRAD_BLUE_MAUVE = "linear-gradient(135deg, #2563eb, #a855f7)";
 const GRAD_CYAN_MAUVE = "linear-gradient(120deg, #38bdf8, #a855f7)";
-const BASE_URL = "http://localhost:3001/";
 
 
 /* ============================ Types ============================ */
@@ -645,20 +646,7 @@ export default function Page() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: 12,
-                background: GRAD_BLUE_VIOLET,
-                display: "grid",
-                placeItems: "center",
-                fontWeight: 800,
-                fontSize: 20,
-              }}
-            >
-              P
-            </div>
+            <Logo size={46} showText={false} />
             <div>
               <div style={{ fontSize: 20, fontWeight: 800 }}>PostGenius AI</div>
               <div style={{ color: C.textSecondary, fontSize: 13 }}>Dashboard — Mes Postes</div>
@@ -1332,25 +1320,21 @@ function MiniStat({ label, value, color }: { label: string; value?: number; colo
 
 function Sidebar() {
 
-  const go = (url: string) => {
-    window.location.href = url;
+  const router = useRouter();
+
+  const go = (path: string) => {
+    router.push(path);
   };
 
-  const goMesPostes = () => go(BASE_URL+"dashboard")
+  const goMesPostes = () => go("/dashboard")
 
-  const goBrouillon = () => {
-    // TODO: page "Brouillon" (postes en cours de préparation)
-  };
+  const goPostesGeneres = () => go("/generated")
 
-  const goPostesGeneres = () => {
-    // TODO: page "Postes générés"
-  };
+  const goPostesSupprimes = () => go("/generated/deleted")
 
-  const goCaracteristiques = () => go(BASE_URL+"keys")
+  const goCaracteristiques = () => go("/keys")
 
-  const goAccueil = () => {
-    // TODO: page "Accueil"
-  };
+  const goAccueil = () => go("/")
 
   const items = [
     {
@@ -1362,20 +1346,20 @@ function Sidebar() {
       hint: "Suivi de vos publications",
     },
     {
-      key: "brouillon",
-      label: "Brouillon",
-      icon: "📝",
-      active: false,
-      onClick: goBrouillon,
-      hint: "Postes en cours de préparation",
-    },
-    {
       key: "postes-generes",
       label: "Postes générés",
       icon: "✨",
       active: false,
       onClick: goPostesGeneres,
       hint: "Postes générés par l'IA",
+    },
+    {
+      key: "postes-supprimes",
+      label: "Postes supprimés",
+      icon: "🗑️",
+      active: false,
+      onClick: goPostesSupprimes,
+      hint: "Postes générés supprimés",
     },
     {
       key: "caracteristiques",
@@ -1411,21 +1395,8 @@ function Sidebar() {
         gap: 6,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 8px 22px" }}>
-        <div
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 10,
-            background: GRAD_BLUE_VIOLET,
-            display: "grid",
-            placeItems: "center",
-            fontWeight: 800,
-          }}
-        >
-          P
-        </div>
-        <div style={{ fontWeight: 800, fontSize: 16 }}>PostGenius</div>
+      <div style={{ padding: "0 8px 22px" }}>
+        <Logo size={38} textSize={16} />
       </div>
 
       {items.map((it) => (

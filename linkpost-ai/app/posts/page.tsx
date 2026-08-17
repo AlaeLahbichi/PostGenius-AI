@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { Logo } from "../theme";
 
 /* ------------------------------------------------------------------ */
 /*  Config                                                              */
 /* ------------------------------------------------------------------ */
 
 const SITE_NAME = "PostGenius AI";
-const API_URL = "http://localhost:3000/linkedin/posts";
+// mes_postes (postes LinkedIn personnels synchronisés), exposée par /ownposts —
+// pas /linkedin/posts, qui lit l'ancienne collection "publications" (inutilisée).
+const API_URL = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000") + "/ownposts";
 
 const NAV_LINKS = [
   { label: "Accueil", href: "/" },
@@ -41,8 +44,9 @@ interface LinkedInPost {
   images?: string[] | null;
   videos?: string[] | null;
   video_thumbnail?: string | null;
-  num_likes: number;
-  num_comments: number;
+  reactions: number;
+  comments: number;
+  shares?: number;
   total_interactions?: number;
   user_name?: string;
   user_profile_pic?: string;
@@ -62,17 +66,6 @@ type MediaItem =
 /* ------------------------------------------------------------------ */
 /*  Icons                                                               */
 /* ------------------------------------------------------------------ */
-function LogoMark() {
-  return (
-    <div
-      className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white shadow-[0_0_24px_-6px_rgba(37,99,235,0.6)]"
-      style={{ background: "linear-gradient(135deg, #2563eb, #7c3aed)" }}
-    >
-      P
-    </div>
-  );
-}
-
 function HeartIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -178,21 +171,16 @@ function PlayIcon() {
 /* ------------------------------------------------------------------ */
 function Navbar() {
   return (
-    <header className="sticky top-0 z-50 border-b border-[#1f2937] bg-[#050814]/80 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-[#2f2650] bg-[#0d0a1a]/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2.5">
-          <LogoMark />
-          <span className="text-[15px] font-semibold tracking-tight text-[#f8fafc]">
-            {SITE_NAME}
-          </span>
-        </Link>
+        <Logo size={36} textSize={15} />
 
         <nav className="hidden items-center gap-8 md:flex">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm text-[#94a3b8] transition-colors hover:text-[#f8fafc]"
+              className="text-sm text-[#a79bc4] transition-colors hover:text-[#f8fafc]"
             >
               {link.label}
             </Link>
@@ -206,7 +194,7 @@ function Navbar() {
           <Link
             href="/load_posts"
             className="rounded-lg px-4 py-2 text-sm font-medium text-white shadow-[0_0_20px_-6px_rgba(124,58,237,0.6)] transition-transform hover:scale-[1.03]"
-            style={{ background: "linear-gradient(135deg, #2563eb, #7c3aed)" }}
+            style={{ background: "linear-gradient(135deg, #2563eb, #8b5cf6)" }}
           >
             Post Import
           </Link>
@@ -239,7 +227,7 @@ function MediaCarousel({ media, alt }: { media: MediaItem[]; alt: string }) {
   }
 
   return (
-    <div className="group relative h-48 w-full overflow-hidden bg-[#0b1020]">
+    <div className="group relative h-48 w-full overflow-hidden bg-[#16112b]">
       {current.type === "image" ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={current.src} alt={alt} className="h-full w-full object-cover" loading="lazy" />
@@ -305,7 +293,7 @@ function MediaCarousel({ media, alt }: { media: MediaItem[]; alt: string }) {
 /* ------------------------------------------------------------------ */
 function PostCard({ post }: { post: LinkedInPost }) {
   const router = useRouter();
-  const interactions = post.total_interactions ?? post.num_likes + post.num_comments;
+  const interactions = post.total_interactions ?? post.reactions + post.comments;
   const formattedDate = new Date(post.date_posted).toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "short",
@@ -327,7 +315,7 @@ function PostCard({ post }: { post: LinkedInPost }) {
   }, [post.images, post.videos, post.video_thumbnail]);
 
   function handleConsulter() {
-    router.push(`/post?id=${encodeURIComponent(post.id)}`);
+    router.push(`/post?id=${encodeURIComponent(post.id)}&source=own`);
   }
 
   function handleAnalyser() {
@@ -335,7 +323,7 @@ function PostCard({ post }: { post: LinkedInPost }) {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-[#1f2937] bg-[#111827] transition-transform hover:-translate-y-0.5">
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-[#2f2650] bg-[#1c1533] transition-transform hover:-translate-y-0.5">
       <MediaCarousel media={media} alt={post.headline ?? "Post LinkedIn"} />
 
       <div className="flex flex-1 flex-col gap-3 p-5">
@@ -353,20 +341,20 @@ function PostCard({ post }: { post: LinkedInPost }) {
             {post.post_type === "repost" && (
               <span
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
-                style={{ background: "rgba(148,163,184,0.15)", color: "#94a3b8" }}
+                style={{ background: "rgba(148,163,184,0.15)", color: "#a79bc4" }}
               >
                 <RepeatIcon /> Repost
               </span>
             )}
           </div>
-          <span className="text-xs text-[#94a3b8]">{formattedDate}</span>
+          <span className="text-xs text-[#a79bc4]">{formattedDate}</span>
         </div>
 
         {post.headline && (
           <h3 className="line-clamp-2 text-sm font-semibold text-[#f8fafc]">{post.headline}</h3>
         )}
 
-        <p className="line-clamp-3 whitespace-pre-line text-sm leading-relaxed text-[#94a3b8]">
+        <p className="line-clamp-3 whitespace-pre-line text-sm leading-relaxed text-[#a79bc4]">
           {post.post_text}
         </p>
 
@@ -384,13 +372,13 @@ function PostCard({ post }: { post: LinkedInPost }) {
           </div>
         )}
 
-        <div className="mt-auto flex items-center justify-between border-t border-[#1f2937] pt-3">
-          <div className="flex items-center gap-4 text-xs text-[#94a3b8]">
+        <div className="mt-auto flex items-center justify-between border-t border-[#2f2650] pt-3">
+          <div className="flex items-center gap-4 text-xs text-[#a79bc4]">
             <span className="flex items-center gap-1.5">
-              <HeartIcon /> {post.num_likes}
+              <HeartIcon /> {post.reactions}
             </span>
             <span className="flex items-center gap-1.5">
-              <CommentIcon /> {post.num_comments}
+              <CommentIcon /> {post.comments}
             </span>
             <span
               className="rounded-full px-2 py-0.5 text-[10px] font-medium"
@@ -412,7 +400,7 @@ function PostCard({ post }: { post: LinkedInPost }) {
         <div className="flex gap-2 pt-1">
           <button
             onClick={handleConsulter}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#1f2937] bg-[#0b1020] py-2 text-xs font-medium text-[#f8fafc] transition-colors hover:border-[#2563eb]"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#2f2650] bg-[#16112b] py-2 text-xs font-medium text-[#f8fafc] transition-colors hover:border-[#2563eb]"
           >
             <EyeIcon /> Consulter
           </button>
@@ -436,21 +424,21 @@ function Toolbar({
 }) {
   return (
     <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-      <p className="text-sm text-[#94a3b8]">
+      <p className="text-sm text-[#a79bc4]">
         <span className="font-semibold text-[#f8fafc]">{total}</span> post{total > 1 ? "s" : ""} au total
       </p>
       <div className="flex items-center gap-2">
-        <label htmlFor="sort" className="text-xs text-[#94a3b8]">
+        <label htmlFor="sort" className="text-xs text-[#a79bc4]">
           Trier par
         </label>
         <select
           id="sort"
           value={sort}
           onChange={(e) => onSortChange(e.target.value as SortValue)}
-          className="rounded-lg border border-[#1f2937] bg-[#111827] px-3 py-2 text-xs font-medium text-[#f8fafc] outline-none transition-colors focus:border-[#2563eb]"
+          className="rounded-lg border border-[#2f2650] bg-[#1c1533] px-3 py-2 text-xs font-medium text-[#f8fafc] outline-none transition-colors focus:border-[#2563eb]"
         >
           {SORT_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value} className="bg-[#111827]">
+            <option key={opt.value} value={opt.value} className="bg-[#1c1533]">
               {opt.label}
             </option>
           ))}
@@ -465,7 +453,7 @@ function Toolbar({
 /* ------------------------------------------------------------------ */
 function LoadingState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-24 text-[#94a3b8]">
+    <div className="flex flex-col items-center justify-center gap-3 py-24 text-[#a79bc4]">
       <SpinnerIcon />
       <p className="text-sm">Chargement des posts…</p>
     </div>
@@ -474,7 +462,7 @@ function LoadingState() {
 
 function ErrorState({ message }: { message: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#1f2937] bg-[#111827] px-8 py-16 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#2f2650] bg-[#1c1533] px-8 py-16 text-center">
       <div
         className="flex h-11 w-11 items-center justify-center rounded-full"
         style={{ background: "rgba(252,165,165,0.12)", color: "#fca5a5" }}
@@ -482,7 +470,7 @@ function ErrorState({ message }: { message: string }) {
         <AlertIcon />
       </div>
       <h3 className="text-base font-semibold text-[#f8fafc]">Impossible de charger les posts</h3>
-      <p className="max-w-sm text-sm text-[#94a3b8]">{message}</p>
+      <p className="max-w-sm text-sm text-[#a79bc4]">{message}</p>
     </div>
   );
 }
@@ -533,14 +521,14 @@ export default function LinkedInPostsListPage() {
       case "date_asc":
         return copy.sort((a, b) => new Date(a.date_posted).getTime() - new Date(b.date_posted).getTime());
       case "likes_desc":
-        return copy.sort((a, b) => b.num_likes - a.num_likes);
+        return copy.sort((a, b) => b.reactions - a.reactions);
       case "comments_desc":
-        return copy.sort((a, b) => b.num_comments - a.num_comments);
+        return copy.sort((a, b) => b.comments - a.comments);
       case "interactions_desc":
         return copy.sort(
           (a, b) =>
-            (b.total_interactions ?? b.num_likes + b.num_comments) -
-            (a.total_interactions ?? a.num_likes + a.num_comments)
+            (b.total_interactions ?? b.reactions + b.comments) -
+            (a.total_interactions ?? a.reactions + a.comments)
         );
       case "date_desc":
       default:
@@ -549,18 +537,18 @@ export default function LinkedInPostsListPage() {
   }, [posts, sort]);
 
   return (
-    <div className="min-h-screen bg-[#050814]">
+    <div className="min-h-screen bg-[#0d0a1a]">
       <Navbar />
 
       <main className="relative mx-auto max-w-6xl px-6 pb-24 pt-16 sm:pt-20">
         <div
           aria-hidden
           className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[420px] w-[720px] -translate-x-1/2 rounded-full opacity-25 blur-[110px]"
-          style={{ background: "linear-gradient(135deg, #2563eb, #7c3aed)" }}
+          style={{ background: "linear-gradient(135deg, #2563eb, #8b5cf6)" }}
         />
 
         <div className="mx-auto max-w-2xl text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#1f2937] bg-[#111827] px-3 py-1 text-xs font-medium text-[#38bdf8]">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#2f2650] bg-[#1c1533] px-3 py-1 text-xs font-medium text-[#38bdf8]">
             Mes posts
           </span>
           <h1 className="mt-5 text-3xl font-bold tracking-tight text-[#f8fafc] sm:text-4xl">
@@ -572,7 +560,7 @@ export default function LinkedInPostsListPage() {
               qui marchent
             </span>
           </h1>
-          <p className="mt-4 text-base text-[#94a3b8]">
+          <p className="mt-4 text-base text-[#a79bc4]">
             Parcourez, triez et analysez les posts LinkedIn récupérés par {SITE_NAME}.
           </p>
         </div>

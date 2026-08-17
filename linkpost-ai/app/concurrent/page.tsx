@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Logo } from "../theme";
 
 /* ============================ Config ============================ */
 
@@ -12,21 +13,21 @@ const REFRESH_INTERVAL = 300; // 5 min (test)
 /* ============================ Charte ============================ */
 
 const C = {
-  bgMain: "#050814",
-  bgSecondary: "#0b1020",
-  card: "#111827",
-  border: "#1f2937",
+  bgMain: "#0d0a1a",
+  bgSecondary: "#16112b",
+  card: "#1c1533",
+  border: "#2f2650",
   textMain: "#f8fafc",
-  textSecondary: "#94a3b8",
+  textSecondary: "#a79bc4",
   blue: "#2563eb",
   cyan: "#38bdf8",
-  violet: "#7c3aed",
+  violet: "#8b5cf6",
   mauve: "#a855f7",
   green: "#22c55e",
   amber: "#fbbf24",
   red: "#fca5a5",
 };
-const GRAD = "linear-gradient(135deg, #2563eb, #7c3aed)";
+const GRAD = "linear-gradient(135deg, #2563eb, #8b5cf6)";
 
 /* ============================ Types ============================ */
 
@@ -123,11 +124,11 @@ function PostMedia({ post }: { post: Post }) {
         style={{
           height: 150,
           borderRadius: 14,
-          background: "linear-gradient(135deg,#0b1020,#141c30)",
+          background: "linear-gradient(135deg,#16112b,#201a3a)",
           border: `1px solid ${C.border}`,
           display: "grid",
           placeItems: "center",
-          color: "#3b4a63",
+          color: "#6a5d8f",
           fontSize: 13,
           letterSpacing: 0.3,
         }}
@@ -659,7 +660,7 @@ export default function ConcurrentsPage() {
       <div style={{ maxWidth: 1000, margin: "0 auto" }}>
         <style>{`
           .pg-card { transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
-          .pg-card:hover { transform: translateY(-3px); border-color: #2b3a52; box-shadow: 0 16px 34px -18px rgba(0,0,0,.75); }
+          .pg-card:hover { transform: translateY(-3px); border-color: #3d3160; box-shadow: 0 16px 34px -18px rgba(0,0,0,.75); }
           .pg-media { touch-action: pan-y; }
           .pg-track { display: flex; height: 100%; transition: transform .42s cubic-bezier(.22,.61,.36,1); }
           .pg-slide { flex: 0 0 100%; width: 100%; height: 100%; }
@@ -675,6 +676,10 @@ export default function ConcurrentsPage() {
             .pg-card, .pg-track, .pg-nav, .pg-dot, .pg-analyse { transition: none !important; }
           }
         `}</style>
+        <div style={{ marginBottom: 22 }}>
+          <Logo size={32} textSize={14} />
+        </div>
+
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
