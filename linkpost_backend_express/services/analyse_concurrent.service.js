@@ -148,10 +148,15 @@ Le champ "explication_angle_attaque" doit ensuite expliquer précisément commen
 13. Mots-clés — les principales entités, thématiques, marques ou sujets présents.
 
 Règles obligatoires :
-- Analyse uniquement les informations réellement présentes, n'invente rien.
-- Chaque champ principal doit être suivi d'un champ d'explication qui justifie la valeur choisie.
+- Analyse uniquement les informations réellement présentes, n'invente rien : aucun chiffre, résultat, outil ou citation qui ne figure pas explicitement dans les données fournies. En cas de doute sur une valeur, choisis null plutôt que de deviner.
+- Chaque champ principal doit être suivi d'un champ d'explication qui justifie la valeur choisie, en français clair et professionnel — pas de formule vague du type "ce post utilise un style intéressant" : dis précisément QUOI et OÙ dans le texte.
 - Utilise null pour une valeur indéterminable, et une liste vide pour une liste indéterminable.
-- Le champ "format" est en MAJUSCULES ; le champ "type_post" est en MAJUSCULES_AVEC_UNDERSCORES.
+- Casse des libellés (pour rester cohérent d'une analyse à l'autre) :
+  - "format" : MAJUSCULES (ex. "IMAGE").
+  - "type_post" : MAJUSCULES_AVEC_UNDERSCORES (ex. "RETOUR_EXPERIENCE").
+  - "style" et "ton" : minuscules (ex. "professionnel", "enthousiaste").
+  - "angle_attaque", "hook_type" et "pattern" : Majuscule en début de libellé uniquement (ex. "Preuve sociale").
+- Avant d'inventer un nouveau libellé pour "style", "ton", "angle_attaque", "hook_type" ou "pattern", vérifie s'il n'existe pas déjà une valeur proche dans le VOCABULAIRE DÉJÀ UTILISÉ (si fourni) ou dans les exemples ci-dessus — deux libellés qui ne diffèrent que par un mot ou une nuance de formulation doivent être fusionnés en un seul.
 - La réponse est rédigée entièrement en français.
 - La réponse contient UNIQUEMENT un objet JSON valide : aucun texte avant ou après, aucun bloc Markdown, aucune balise \`\`\`json, aucun commentaire.
 - Respecte exactement les noms de champs demandés dans le message utilisateur.`;

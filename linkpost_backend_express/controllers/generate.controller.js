@@ -8,6 +8,17 @@ import {
   updateGeneratedPostStatus,
   shareGeneratedPost,
 } from "../services/generate.service.js";
+import { getTokenStatus } from "../services/linkedinPublish.service.js";
+
+export async function linkedinStatusCtrl(req, res) {
+  try {
+    res.set("Cache-Control", "no-store");
+    return res.status(200).json({ success: true, ...getTokenStatus() });
+  } catch (error) {
+    console.error("Erreur linkedinStatus :", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
 
 
 export async function values(req, res) {

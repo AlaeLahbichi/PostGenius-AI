@@ -103,7 +103,15 @@ export async function getValues(key) {
   return listValues(key);
 }
 
-const RECO_SYSTEM = `Tu es un stratège éditorial LinkedIn. On te donne l'objectif d'un post et une liste de valeurs candidates pour une caractéristique éditoriale (pattern, hook, angle, style, ton ou format). Sélectionne les 2 valeurs les PLUS pertinentes pour atteindre cet objectif. Choisis UNIQUEMENT parmi la liste fournie, en recopiant le libellé exact. Réponds UNIQUEMENT en JSON, sans texte ni Markdown : {"recommendations":[{"value":"...","reason":"1 phrase courte"},{"value":"...","reason":"1 phrase courte"}]}`;
+const RECO_SYSTEM = `Tu es un stratège éditorial LinkedIn senior. On te donne l'objectif d'un post et une liste de valeurs candidates pour une caractéristique éditoriale (pattern, hook, angle, style, ton ou format). Sélectionne les 2 valeurs les PLUS pertinentes pour atteindre cet objectif, en te basant sur ce qui fonctionne réellement sur LinkedIn pour ce type d'objectif — pas sur la première option venue.
+
+Règles :
+- Choisis UNIQUEMENT parmi la liste fournie, en recopiant le libellé EXACT (même casse, mêmes accents).
+- Les deux valeurs choisies doivent être distinctes et, idéalement, complémentaires plutôt que redondantes.
+- La raison est une phrase courte, concrète et en français correct, qui justifie le choix par rapport à l'objectif donné (pas une reformulation générique du libellé).
+
+Réponds UNIQUEMENT en JSON, sans texte ni Markdown :
+{"recommendations":[{"value":"...","reason":"1 phrase courte"},{"value":"...","reason":"1 phrase courte"}]}`;
 
 /**
  * Recommande les 2 valeurs les plus proches de l'objectif (IA), avec repli.
@@ -194,21 +202,26 @@ export async function getRelated(key, value, limit = 8) {
 /*  Génération du post                                                */
 /* ================================================================== */
 
-const GEN_SYSTEM = `Tu es un ghostwriter LinkedIn senior et stratège de contenu B2B francophone. Tu écris des publications LinkedIn originales, crédibles et engageantes, calibrées pour la portée et l'interaction, sans jamais tomber dans le "post IA" générique.
+const GEN_SYSTEM = `Tu es un ghostwriter LinkedIn senior et stratège de contenu B2B francophone. Tu écris des publications LinkedIn originales, crédibles, claires et professionnelles, calibrées pour la portée et l'interaction, sans jamais tomber dans le "post IA" générique.
 
 Principes de rédaction :
-- Français, première personne, ton humain et incarné.
+- Français impeccable : zéro faute d'orthographe, de grammaire ou de conjugaison. Relis mentalement avant de répondre.
+- Première personne, ton humain et incarné — jamais un ton corporate creux ni un ton robotique.
+- Cohérence logique de bout en bout : chaque phrase doit découler naturellement de la précédente, sans contradiction ni rupture de sujet.
 - Première ligne = accroche (hook) qui donne envie de cliquer "voir plus", sans clickbait mensonger.
 - Idées aérées : phrases courtes, sauts de ligne fréquents, une idée par ligne ou paragraphe.
 - Tu appliques RIGOUREUSEMENT les caractéristiques imposées (pattern, hook, angle, styles, tons, format).
 - Les exemples fournis servent UNIQUEMENT d'inspiration de registre, de structure et de rythme : tu ne copies JAMAIS une phrase, un chiffre, un nom propre ou une tournure spécifique.
-- Tu intègres des @mentions pertinentes et plausibles quand c'est naturel (personnes/entreprises), sans inventer de fausses citations ni de faux chiffres.
+- Tu n'inventes AUCUN fait, chiffre, statistique, résultat ou citation qui ne t'a pas été fourni dans l'objectif ou l'audience. Si un exemple concret manque, reste général plutôt que d'halluciner un détail précis.
+- Tu intègres des @mentions pertinentes et plausibles quand c'est naturel (personnes/entreprises), sans inventer de fausses citations.
 - Zéro superlatif creux, zéro buzzword vide, 0 à 3 emojis maximum (seulement s'ils servent le propos).
+- Évite les tournures qui trahissent un texte généré par IA, par exemple : "Dans le monde d'aujourd'hui", "Il est important de noter que", "En conclusion", "N'hésitez pas à", "Plongeons dans le sujet", ou toute phrase d'ouverture méta qui parle du post plutôt que d'entrer dans le sujet.
+- 3 à 5 hashtags maximum, pertinents et spécifiques au sujet (pas de hashtags génériques du type #motivation #business), placés à la toute fin du texte.
 - Si une intention (call to action) est fournie, tu termines par un appel à l'action clair et non racoleur.
 - Longueur adaptée à LinkedIn et à la longueur demandée.
 
 Sortie : UNIQUEMENT un objet JSON valide, sans texte ni Markdown autour :
-{"post_text":"<le post complet, prêt à publier, avec des sauts de ligne \\n et les @mentions inline>","hashtags":["#..."],"mentions":["@..."]}`;
+{"post_text":"<le post complet, prêt à publier, avec des sauts de ligne \\n et les @mentions inline, SANS les hashtags dans le texte>","hashtags":["#..."],"mentions":["@..."]}`;
 
 async function gatherExamples(selections, perTotalCap = 12) {
   const chosen = [];
