@@ -25,6 +25,8 @@ export const C = {
 };
 
 export const GRAD = "linear-gradient(135deg, #2563eb, #8b5cf6)";
+export const GRAD_BLUE_MAUVE = "linear-gradient(135deg, #2563eb, #a855f7)";
+export const GRAD_CYAN_MAUVE = "linear-gradient(120deg, #38bdf8, #a855f7)";
 
 /**
  * Logo PostGenius AI — icône (tête IA extraite du logo) + nom du site,

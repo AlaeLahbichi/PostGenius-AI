@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Logo } from "../theme";
+import { Logo, C, GRAD } from "../theme";
 import {
   ResponsiveContainer,
   BarChart,
@@ -23,25 +23,6 @@ import {
 /* ============================ Config ============================ */
 
 const API_KEYS = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000") + "/keys";
-
-/* ============================ Charte ============================ */
-
-const C = {
-  bgMain: "#0d0a1a",
-  bgSecondary: "#16112b",
-  card: "#1c1533",
-  border: "#2f2650",
-  textMain: "#f8fafc",
-  textSecondary: "#a79bc4",
-  blue: "#2563eb",
-  cyan: "#38bdf8",
-  violet: "#8b5cf6",
-  mauve: "#a855f7",
-  green: "#22c55e",
-  amber: "#fbbf24",
-  red: "#fca5a5",
-};
-const GRAD = "linear-gradient(135deg, #2563eb, #8b5cf6)";
 
 /* ============================ Types ============================ */
 

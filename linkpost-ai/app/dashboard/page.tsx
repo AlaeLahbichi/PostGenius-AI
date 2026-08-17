@@ -3,7 +3,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Logo } from "../theme";
+import { Logo, C, GRAD as GRAD_BLUE_VIOLET, GRAD_BLUE_MAUVE, GRAD_CYAN_MAUVE } from "../theme";
+import {
+  type Snapshot,
+  type Granularity,
+  type SeriesPoint,
+  GRANULARITIES,
+  fmtNum,
+  fmtDate,
+  mmss,
+  bucketizeSeries,
+  timeFormatter,
+} from "./timeseries";
 import {
   ResponsiveContainer,
   LineChart,
@@ -31,38 +42,10 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000";
 const DEFAULT_PROFILE = "https://www.linkedin.com/in/lahbichi-alae/";
 const REFRESH_INTERVAL = 300; // 5 min (test)
 
-/* ============================ Charte ============================ */
-
-const C = {
-  bgMain: "#0d0a1a",
-  bgSecondary: "#16112b",
-  card: "#1c1533",
-  border: "#2f2650",
-  textMain: "#f8fafc",
-  textSecondary: "#a79bc4",
-  blue: "#2563eb",
-  cyan: "#38bdf8",
-  violet: "#8b5cf6",
-  mauve: "#a855f7",
-  green: "#22c55e",
-  amber: "#fbbf24",
-  red: "#fca5a5",
-};
-
-const GRAD_BLUE_VIOLET = "linear-gradient(135deg, #2563eb, #8b5cf6)";
-const GRAD_BLUE_MAUVE = "linear-gradient(135deg, #2563eb, #a855f7)";
-const GRAD_CYAN_MAUVE = "linear-gradient(120deg, #38bdf8, #a855f7)";
+/* ============================ Charte : voir ../theme.tsx ============================ */
 
 
 /* ============================ Types ============================ */
-
-type Snapshot = {
-  captured_at: string;
-  reactions: number;
-  comments: number;
-  shares: number;
-  total_interactions: number;
-};
 
 type Post = {
   id: string;
@@ -91,130 +74,6 @@ type GlobalStats = {
   timeseries: Snapshot[];
 };
 
-/* ============================ Helpers ============================ */
-
-const fmtNum = (n: number | undefined) => (n ?? 0).toLocaleString("fr-FR");
-
-const fmtDate = (iso?: string) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
-};
-
-const mmss = (s: number) => {
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-};
-
-/* ---------- Granularité temporelle du graphe d'évolution ---------- */
-
-type Granularity = "hour" | "day" | "week" | "month" | "year";
-
-const GRANULARITIES: { key: Granularity; label: string }[] = [
-  { key: "hour", label: "Détail" }, // heures + minutes (même jour)
-  { key: "day", label: "Jour" },
-  { key: "week", label: "Semaine" },
-  { key: "month", label: "Mois" },
-  { key: "year", label: "Année" },
-];
-
-// Début de semaine (lundi) pour le regroupement hebdomadaire.
-const startOfWeek = (d: Date) => {
-  const tmp = new Date(d);
-  const dow = (tmp.getDay() + 6) % 7; // lundi = 0
-  tmp.setHours(0, 0, 0, 0);
-  tmp.setDate(tmp.getDate() - dow);
-  return tmp;
-};
-
-// Clé de regroupement selon la granularité choisie.
-const bucketKey = (iso: string, g: Granularity) => {
-  const d = new Date(iso);
-  if (g === "hour") return iso; // chaque capture reste distincte (h:min)
-  if (g === "day") return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-  if (g === "week") {
-    const w = startOfWeek(d);
-    return `${w.getFullYear()}-${w.getMonth()}-${w.getDate()}`;
-  }
-  if (g === "month") return `${d.getFullYear()}-${d.getMonth()}`;
-  return `${d.getFullYear()}`; // année
-};
-
-// Libellé affiché sur l'axe X selon la granularité.
-const bucketLabel = (iso: string, g: Granularity) => {
-  const d = new Date(iso);
-  if (g === "hour") return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  if (g === "day") return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
-  if (g === "week")
-    return "sem. " + startOfWeek(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
-  if (g === "month") return d.toLocaleDateString("fr-FR", { month: "short", year: "numeric" });
-  return String(d.getFullYear()); // année
-};
-
-/**
- * Type d'un point de série enrichi pour l'affichage.
- */
-type SeriesPoint = {
-  key: string; // clé unique (indispensable pour placer les repères de jour)
-  t: string; // libellé du bucket (heure, jour, mois…)
-  time: string; // heure:minute (pour l'axe en mode détail)
-  dt: number; // timestamp ms
-  dayStart: boolean; // premier point d'un nouveau jour (affiche la date)
-  dayChange: boolean; // changement de jour (trait vertical animé)
-  dayLabel: string; // ex. "ven. 29/07"
-  isHour: boolean; // vue détaillée (heure) ?
-  total: number;
-  reactions: number;
-  comments: number;
-  shares: number;
-};
-
-/**
- * Regroupe une série de snapshots selon la granularité.
- * Pour une métrique cumulative, on conserve la DERNIÈRE valeur
- * de chaque période (l'état atteint en fin de bucket).
- *
- * Ajoute les drapeaux de changement de jour pour matérialiser
- * le passage 20:30 -> 20:30 (lendemain) sur les graphes détaillés.
- */
-function bucketizeSeries(timeseries: Snapshot[], g: Granularity): SeriesPoint[] {
-  const map = new Map<string, Snapshot & { _order: number }>();
-  for (const s of timeseries) {
-    const key = bucketKey(s.captured_at, g);
-    // timeseries est trié par date croissante => la dernière écriture gagne
-    map.set(key, { ...s, _order: new Date(s.captured_at).getTime() });
-  }
-
-  const sorted = Array.from(map.values()).sort((a, b) => a._order - b._order);
-
-  let prevDay: string | null = null;
-
-  return sorted.map((s, i) => {
-    const d = new Date(s._order);
-    const dayId = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    const changed = i > 0 && dayId !== prevDay;
-    const isFirst = i === 0;
-    prevDay = dayId;
-
-    return {
-      key: String(s._order),
-      t: bucketLabel(s.captured_at, g),
-      time: d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
-      dt: s._order,
-      dayStart: isFirst || changed,
-      dayChange: changed,
-      dayLabel: d.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit" }),
-      isHour: g === "hour",
-      total: s.total_interactions,
-      reactions: s.reactions,
-      comments: s.comments,
-      shares: s.shares,
-    };
-  });
-}
-
 /* ---------- Repères de changement de jour (à insérer dans un graphe) ---------- */
 
 // Renvoie un tableau de <ReferenceLine> pour chaque changement de jour.
@@ -234,10 +93,6 @@ function renderDayDividers(data: SeriesPoint[]) {
       />
     ));
 }
-
-// Formatteur d'axe X en mode détail : affiche l'heure au lieu de la clé.
-const timeFormatter = (data: SeriesPoint[]) => (k: string) =>
-  data.find((p) => p.key === k)?.time ?? k;
 
 /* ============================ UI atoms ============================ */
 
@@ -429,6 +284,8 @@ export default function Page() {
 
   const [granularity, setGranularity] = useState<Granularity>("hour");
 
+  const [linkedinDaysRemaining, setLinkedinDaysRemaining] = useState<number | null>(null);
+
   /* ---------- Chargement des données ---------- */
 
   const loadData = useCallback(async () => {
@@ -536,6 +393,17 @@ export default function Page() {
   useEffect(() => {
     loadData();
     loadSchedule(); // restaure l'état auto au chargement / après un F5
+
+    // Bannière d'expiration du token LinkedIn — best-effort, silencieux si
+    // LINKEDIN_TOKEN_ISSUED_AT n'est pas configuré côté serveur.
+    fetch(`${API_BASE}/generate/linkedin-status`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.success && typeof json.daysRemaining === "number") {
+          setLinkedinDaysRemaining(json.daysRemaining);
+        }
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -698,6 +566,29 @@ export default function Page() {
             </PrimaryButton>
           </div>
         </div>
+
+        {/* ---------------- Bannière expiration token LinkedIn ---------------- */}
+        {linkedinDaysRemaining !== null && linkedinDaysRemaining <= 14 && (
+          <Card
+            style={{
+              marginBottom: 18,
+              borderColor: linkedinDaysRemaining <= 0 ? C.red : C.amber,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <span style={{ color: linkedinDaysRemaining <= 0 ? C.red : C.amber }}>
+              {linkedinDaysRemaining <= 0
+                ? "⚠ Le token de publication LinkedIn a probablement expiré."
+                : `⚠ Le token de publication LinkedIn expire dans ${linkedinDaysRemaining} jour${linkedinDaysRemaining > 1 ? "s" : ""}.`}
+            </span>
+            <span style={{ color: C.textSecondary, fontSize: 13 }}>
+              Régénère-le depuis le Token Generator LinkedIn (scopes w_member_social, openid, profile) et mets à jour LINKEDIN_ACCESS_TOKEN + LINKEDIN_TOKEN_ISSUED_AT dans .env.
+            </span>
+          </Card>
+        )}
 
         {/* ---------------- Profil + messages ---------------- */}
         <Card style={{ marginBottom: 22, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
