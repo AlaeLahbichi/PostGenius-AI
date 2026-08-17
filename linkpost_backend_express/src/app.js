@@ -14,10 +14,13 @@ const app = express();
 
 app.use(cors());
 
-app.use(express.json());
+// Limite relevée (défaut Express : 100kb) : une image jointe à un poste
+// (encodée en base64) dépasse largement cette limite par défaut.
+app.use(express.json({ limit: "8mb" }));
 
 app.use(express.urlencoded({
-    extended: true
+    extended: true,
+    limit: "8mb",
 }));
 
 app.use(morgan("dev"));

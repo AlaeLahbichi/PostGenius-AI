@@ -10,16 +10,20 @@ import {
   fetchGeneratedPosts,
   setPostStatus,
   shareGeneratedPost,
+  scheduleGeneratedPost,
+  cancelGeneratedPostSchedule,
   fmtDate,
   StatusBadge,
   PostDetailModal,
+  ScheduleInline,
 } from "./shared";
 
-type FilterValue = "all" | "brouillon" | "shared";
+type FilterValue = "all" | "brouillon" | "programme" | "shared";
 
 const FILTERS: { value: FilterValue; label: string }[] = [
   { value: "all", label: "Tous" },
   { value: "brouillon", label: "Brouillon" },
+  { value: "programme", label: "Programmé" },
   { value: "shared", label: "Partagé" },
 ];
 
@@ -32,12 +36,13 @@ export default function GeneratedPostsPage() {
   const [filter, setFilter] = useState<FilterValue>("all");
   const [selected, setSelected] = useState<GeneratedPost | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [schedulingId, setSchedulingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchGeneratedPosts(["brouillon", "shared"]);
+      const data = await fetchGeneratedPosts(["brouillon", "programme", "shared"]);
       setPosts(data);
     } catch (e: any) {
       setError(e?.message || "Chargement impossible.");
@@ -77,6 +82,35 @@ export default function GeneratedPostsPage() {
       setSelected((s) => (s && s._id === id ? null : s));
     } catch (e: any) {
       setError(e?.message || "Impossible de supprimer ce post.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleSchedule(id: string, iso: string) {
+    setBusyId(id);
+    setError(null);
+    try {
+      await scheduleGeneratedPost(id, iso);
+      setPosts((prev) => prev.map((p) => (p._id === id ? { ...p, status: "programme", scheduled_at: iso } : p)));
+      setSelected((s) => (s && s._id === id ? { ...s, status: "programme", scheduled_at: iso } : s));
+      setSchedulingId(null);
+    } catch (e: any) {
+      setError(e?.message || "Impossible de programmer ce post.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleCancelSchedule(id: string) {
+    setBusyId(id);
+    setError(null);
+    try {
+      await cancelGeneratedPostSchedule(id);
+      setPosts((prev) => prev.map((p) => (p._id === id ? { ...p, status: "brouillon", scheduled_at: null } : p)));
+      setSelected((s) => (s && s._id === id ? { ...s, status: "brouillon", scheduled_at: null } : s));
+    } catch (e: any) {
+      setError(e?.message || "Impossible d'annuler la programmation.");
     } finally {
       setBusyId(null);
     }
@@ -154,6 +188,10 @@ export default function GeneratedPostsPage() {
                   <span style={{ fontSize: 12, color: C.textSecondary }}>{fmtDate(post.created_at)}</span>
                 </div>
 
+                {post.status === "programme" && post.scheduled_at && (
+                  <div style={{ fontSize: 12, color: C.blue }}>🕒 Programmé pour le {fmtDate(post.scheduled_at)}</div>
+                )}
+
                 <p
                   onClick={() => setSelected(post)}
                   style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: "#e2e8f0", cursor: "pointer", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical", overflow: "hidden" }}
@@ -161,30 +199,56 @@ export default function GeneratedPostsPage() {
                   {post.post_text}
                 </p>
 
-                <div style={{ display: "flex", gap: 8, marginTop: "auto", paddingTop: 8, flexWrap: "wrap" }}>
-                  <button
-                    onClick={() => setSelected(post)}
-                    style={{ background: "transparent", color: C.cyan, border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
-                  >
-                    Voir le détail
-                  </button>
-                  {post.status === "brouillon" && (
+                {schedulingId === post._id ? (
+                  <ScheduleInline
+                    busy={busyId === post._id}
+                    onCancel={() => setSchedulingId(null)}
+                    onConfirm={(iso) => handleSchedule(post._id, iso)}
+                  />
+                ) : (
+                  <div style={{ display: "flex", gap: 8, marginTop: "auto", paddingTop: 8, flexWrap: "wrap" }}>
                     <button
-                      onClick={() => handleShare(post._id)}
-                      disabled={busyId === post._id}
-                      style={{ background: GRAD, color: "#fff", border: "none", borderRadius: 10, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: busyId === post._id ? "not-allowed" : "pointer", opacity: busyId === post._id ? 0.6 : 1 }}
+                      onClick={() => setSelected(post)}
+                      style={{ background: "transparent", color: C.cyan, border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
                     >
-                      {busyId === post._id ? "Publication…" : "Publier sur LinkedIn"}
+                      Voir le détail
                     </button>
-                  )}
-                  <button
-                    onClick={() => handleDelete(post._id)}
-                    disabled={busyId === post._id}
-                    style={{ background: "transparent", color: C.red, border: `1px solid ${C.red}55`, borderRadius: 10, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: busyId === post._id ? "not-allowed" : "pointer", opacity: busyId === post._id ? 0.6 : 1 }}
-                  >
-                    Supprimer
-                  </button>
-                </div>
+                    {post.status === "brouillon" && (
+                      <>
+                        <button
+                          onClick={() => setSchedulingId(post._id)}
+                          disabled={busyId === post._id}
+                          style={{ background: "transparent", color: C.blue, border: `1px solid ${C.blue}`, borderRadius: 10, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: busyId === post._id ? "not-allowed" : "pointer", opacity: busyId === post._id ? 0.6 : 1 }}
+                        >
+                          Programmer
+                        </button>
+                        <button
+                          onClick={() => handleShare(post._id)}
+                          disabled={busyId === post._id}
+                          style={{ background: GRAD, color: "#fff", border: "none", borderRadius: 10, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: busyId === post._id ? "not-allowed" : "pointer", opacity: busyId === post._id ? 0.6 : 1 }}
+                        >
+                          {busyId === post._id ? "Publication…" : "Publier sur LinkedIn"}
+                        </button>
+                      </>
+                    )}
+                    {post.status === "programme" && (
+                      <button
+                        onClick={() => handleCancelSchedule(post._id)}
+                        disabled={busyId === post._id}
+                        style={{ background: "transparent", color: C.amber, border: `1px solid ${C.amber}55`, borderRadius: 10, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: busyId === post._id ? "not-allowed" : "pointer", opacity: busyId === post._id ? 0.6 : 1 }}
+                      >
+                        Annuler la programmation
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(post._id)}
+                      disabled={busyId === post._id}
+                      style={{ background: "transparent", color: C.red, border: `1px solid ${C.red}55`, borderRadius: 10, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: busyId === post._id ? "not-allowed" : "pointer", opacity: busyId === post._id ? 0.6 : 1 }}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -197,6 +261,8 @@ export default function GeneratedPostsPage() {
           onClose={() => setSelected(null)}
           busy={busyId === selected._id}
           onShare={selected.status === "brouillon" ? () => handleShare(selected._id) : undefined}
+          onSchedule={selected.status === "brouillon" ? (iso) => handleSchedule(selected._id, iso) : undefined}
+          onCancelSchedule={selected.status === "programme" ? () => handleCancelSchedule(selected._id) : undefined}
           onDelete={() => handleDelete(selected._id)}
         />
       )}

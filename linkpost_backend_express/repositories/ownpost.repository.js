@@ -209,3 +209,17 @@ export async function ownPostExists(id) {
   const count = await ownPosts.countDocuments({ id });
   return count > 0;
 }
+
+/**
+ * Mes N postes les plus performants (interactions décroissantes), avec un
+ * texte exploitable. Sert d'inspiration de "voix perso" à la génération IA
+ * (voir generate.service.js) — pas au scoring des dimensions.
+ */
+export async function getTopOwnPostsByInteractions(limit = 5) {
+  const ownPosts = await collection();
+  return await ownPosts
+    .find({ post_text: { $exists: true, $ne: "" } })
+    .sort({ total_interactions: -1 })
+    .limit(limit)
+    .toArray();
+}

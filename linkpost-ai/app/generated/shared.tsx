@@ -6,13 +6,16 @@
  * et briques visuelles reprises du template /post.
  */
 
+import { useEffect, useState } from "react";
 import { C, GRAD } from "../theme";
 
 export { C, GRAD };
 
-export const API = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000") + "/generate";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000";
+export const API = `${API_BASE}/generate`;
+const OWNPOSTS_API = `${API_BASE}/ownposts`;
 
-export type PostStatus = "brouillon" | "shared" | "supprime";
+export type PostStatus = "brouillon" | "programme" | "shared" | "supprime";
 
 export type GeneratedPost = {
   _id: string;
@@ -32,10 +35,16 @@ export type GeneratedPost = {
   status: PostStatus;
   created_at?: string;
   updated_at?: string;
+  scheduled_at?: string | null;
+  image_mime_type?: string | null;
+  own_post_id?: string | null;
+  linked_at?: string | null;
+  linkedin_post_id?: string | null;
 };
 
 export const STATUS_META: Record<PostStatus, { label: string; color: string }> = {
   brouillon: { label: "Brouillon", color: C.amber },
+  programme: { label: "Programmé", color: C.blue },
   shared: { label: "Partagé", color: C.green },
   supprime: { label: "Supprimé", color: C.red },
 };
@@ -51,9 +60,9 @@ export async function fetchGeneratedPosts(statuses: PostStatus[]): Promise<Gener
   return json.posts || [];
 }
 
-// "shared" ne se met plus à jour directement — voir shareGeneratedPost,
-// qui publie réellement sur LinkedIn avant de changer le statut.
-export async function setPostStatus(id: string, status: Exclude<PostStatus, "shared">): Promise<void> {
+// "shared" et "programme" ne se mettent plus à jour directement — voir
+// shareGeneratedPost / scheduleGeneratedPost.
+export async function setPostStatus(id: string, status: Exclude<PostStatus, "shared" | "programme">): Promise<void> {
   const res = await fetch(`${API}/created/${id}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -64,15 +73,40 @@ export async function setPostStatus(id: string, status: Exclude<PostStatus, "sha
 }
 
 /**
- * Publie réellement le poste sur LinkedIn (texte + hashtags), puis marque
- * son statut "shared". Peut échouer (token expiré, scope manquant...) —
- * dans ce cas le statut reste inchangé côté serveur.
+ * Publie réellement le poste sur LinkedIn (texte + hashtags + image jointe
+ * éventuelle), puis marque son statut "shared". Peut échouer (token
+ * expiré, scope manquant...) — dans ce cas le statut reste inchangé
+ * côté serveur.
  */
 export async function shareGeneratedPost(id: string): Promise<{ linkedinPostId: string | null }> {
   const res = await fetch(`${API}/created/${id}/share`, { method: "POST" });
   const json = await res.json();
   if (!json.success) throw new Error(json.message || "Publication LinkedIn impossible.");
   return { linkedinPostId: json.linkedinPostId ?? null };
+}
+
+/**
+ * Programme la publication d'un brouillon à une date/heure future. Le
+ * serveur publie automatiquement le post une fois cette date atteinte
+ * (voir publishScheduler.service.js côté backend).
+ */
+export async function scheduleGeneratedPost(id: string, scheduledAtIso: string): Promise<void> {
+  const res = await fetch(`${API}/created/${id}/schedule`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scheduledAt: scheduledAtIso }),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.message || "Programmation impossible.");
+}
+
+/**
+ * Annule la programmation d'un poste (retour à "brouillon").
+ */
+export async function cancelGeneratedPostSchedule(id: string): Promise<void> {
+  const res = await fetch(`${API}/created/${id}/schedule/cancel`, { method: "POST" });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.message || "Annulation impossible.");
 }
 
 export function fmtDate(iso?: string) {
@@ -84,6 +118,129 @@ export function fmtDate(iso?: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/**
+ * Valeur minimale exploitable par un <input type="datetime-local"> :
+ * "maintenant + 5 min", au format local sans timezone.
+ */
+function minScheduleValue(): string {
+  const d = new Date(Date.now() + 5 * 60 * 1000);
+  d.setSeconds(0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Programmation (publication différée)                               */
+/* ------------------------------------------------------------------ */
+
+export function ScheduleInline({
+  onConfirm,
+  onCancel,
+  busy,
+}: {
+  onConfirm: (iso: string) => void;
+  onCancel: () => void;
+  busy?: boolean;
+}) {
+  const [value, setValue] = useState(minScheduleValue());
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
+      <input
+        type="datetime-local"
+        value={value}
+        min={minScheduleValue()}
+        onChange={(e) => setValue(e.target.value)}
+        style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, color: C.textMain, padding: "7px 10px", fontSize: 12.5, outline: "none", fontFamily: "inherit" }}
+      />
+      <button
+        onClick={() => value && onConfirm(new Date(value).toISOString())}
+        disabled={busy || !value}
+        style={{ background: GRAD, color: "#fff", border: "none", borderRadius: 10, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+      >
+        Confirmer
+      </button>
+      <button
+        onClick={onCancel}
+        style={{ background: "transparent", color: C.textSecondary, border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+      >
+        Annuler
+      </button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Boucle fermée : performances réelles d'un post reconcilié          */
+/* ------------------------------------------------------------------ */
+
+type OwnPostMetrics = {
+  reactions?: number;
+  comments?: number;
+  shares?: number;
+  total_interactions?: number;
+  url?: string | null;
+};
+
+/**
+ * Une fois qu'un post généré publié a été relié à sa version réellement
+ * synchronisée (mes_postes) — voir postReconciliation.service.js côté
+ * backend — ce composant affiche ses VRAIES performances, pour rendre
+ * visible la boucle "généré avec ces caractéristiques -> voici le résultat".
+ */
+export function ReconciledStats({ ownPostId, linkedAt }: { ownPostId: string; linkedAt?: string | null }) {
+  const [metrics, setMetrics] = useState<OwnPostMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`${OWNPOSTS_API}/${encodeURIComponent(ownPostId)}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (!cancelled && json?.success) setMetrics(json.post || null);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ownPostId]);
+
+  if (loading) return null;
+  if (!metrics) return null;
+
+  return (
+    <div style={{ background: "rgba(34,197,94,.08)", border: `1px solid ${C.green}55`, borderRadius: 14, padding: 16 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginBottom: 10 }}>
+        ✓ Performances réelles{linkedAt ? ` (réconcilié le ${fmtDate(linkedAt)})` : ""}
+      </div>
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+        <Stat label="Interactions" value={metrics.total_interactions ?? 0} />
+        <Stat label="Réactions" value={metrics.reactions ?? 0} />
+        <Stat label="Commentaires" value={metrics.comments ?? 0} />
+        <Stat label="Partages" value={metrics.shares ?? 0} />
+      </div>
+      {metrics.url && (
+        <a href={metrics.url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 10, fontSize: 12.5, color: C.cyan }}>
+          Voir le post sur LinkedIn ↗
+        </a>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: C.textMain }}>{value.toLocaleString("fr-FR")}</div>
+      <div style={{ fontSize: 11, color: C.textSecondary }}>{label}</div>
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -141,14 +298,20 @@ export function PostDetailModal({
   onClose,
   onShare,
   onDelete,
+  onSchedule,
+  onCancelSchedule,
   busy,
 }: {
   post: GeneratedPost;
   onClose: () => void;
   onShare?: () => void;
   onDelete?: () => void;
+  onSchedule?: (iso: string) => void;
+  onCancelSchedule?: () => void;
   busy?: boolean;
 }) {
+  const [scheduling, setScheduling] = useState(false);
+
   return (
     <div
       onClick={onClose}
@@ -180,9 +343,14 @@ export function PostDetailModal({
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <StatusBadge status={post.status} />
             <span style={{ fontSize: 12.5, color: C.textSecondary }}>{fmtDate(post.created_at)}</span>
+            {post.image_mime_type && (
+              <span style={{ fontSize: 12, color: C.cyan, background: "rgba(56,189,248,.12)", borderRadius: 999, padding: "4px 10px" }}>
+                📷 Image jointe
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -191,6 +359,16 @@ export function PostDetailModal({
             ✕
           </button>
         </div>
+
+        {post.status === "programme" && post.scheduled_at && (
+          <div style={{ background: "rgba(37,99,235,.1)", border: `1px solid ${C.blue}55`, borderRadius: 14, padding: 14, fontSize: 13.5, color: C.textMain }}>
+            🕒 Publication programmée pour le <b>{fmtDate(post.scheduled_at)}</b>
+          </div>
+        )}
+
+        {post.status === "shared" && post.own_post_id && (
+          <ReconciledStats ownPostId={post.own_post_id} linkedAt={post.linked_at} />
+        )}
 
         <div style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
           <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: "#e2e8f0", whiteSpace: "pre-line" }}>
@@ -225,29 +403,60 @@ export function PostDetailModal({
           <Field label="Mentions"><Pills items={post.mentions} color={C.amber} /></Field>
         )}
 
-        {(onShare || onDelete) && (
+        {(onShare || onDelete || onSchedule || onCancelSchedule) && (
           <>
             <Divider />
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              {onShare && (
-                <button
-                  onClick={onShare}
-                  disabled={busy}
-                  style={{ background: GRAD, color: "#fff", border: "none", borderRadius: 12, padding: "10px 18px", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
-                >
-                  {busy ? "Publication…" : "Publier sur LinkedIn"}
-                </button>
-              )}
-              {onDelete && (
-                <button
-                  onClick={onDelete}
-                  disabled={busy}
-                  style={{ background: "transparent", color: C.red, border: `1px solid ${C.red}55`, borderRadius: 12, padding: "10px 18px", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
-                >
-                  Supprimer
-                </button>
-              )}
-            </div>
+            {scheduling && onSchedule ? (
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <ScheduleInline
+                  busy={busy}
+                  onCancel={() => setScheduling(false)}
+                  onConfirm={(iso) => {
+                    onSchedule(iso);
+                    setScheduling(false);
+                  }}
+                />
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                {onCancelSchedule && (
+                  <button
+                    onClick={onCancelSchedule}
+                    disabled={busy}
+                    style={{ background: "transparent", color: C.amber, border: `1px solid ${C.amber}55`, borderRadius: 12, padding: "10px 18px", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+                  >
+                    Annuler la programmation
+                  </button>
+                )}
+                {onSchedule && (
+                  <button
+                    onClick={() => setScheduling(true)}
+                    disabled={busy}
+                    style={{ background: "transparent", color: C.blue, border: `1px solid ${C.blue}`, borderRadius: 12, padding: "10px 18px", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+                  >
+                    Programmer
+                  </button>
+                )}
+                {onShare && (
+                  <button
+                    onClick={onShare}
+                    disabled={busy}
+                    style={{ background: GRAD, color: "#fff", border: "none", borderRadius: 12, padding: "10px 18px", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+                  >
+                    {busy ? "Publication…" : "Publier sur LinkedIn"}
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    onClick={onDelete}
+                    disabled={busy}
+                    style={{ background: "transparent", color: C.red, border: `1px solid ${C.red}55`, borderRadius: 12, padding: "10px 18px", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
+                  >
+                    Supprimer
+                  </button>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>

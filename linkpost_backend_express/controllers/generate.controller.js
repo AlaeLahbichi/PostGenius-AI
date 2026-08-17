@@ -7,6 +7,8 @@ import {
   getCreated,
   updateGeneratedPostStatus,
   shareGeneratedPost,
+  schedulePost,
+  cancelSchedule,
 } from "../services/generate.service.js";
 import { getTokenStatus } from "../services/linkedinPublish.service.js";
 
@@ -116,5 +118,37 @@ export async function shareCreatedPostCtrl(req, res) {
       error.message.includes("introuvable") ||
       error.message.includes("supprimé");
     return res.status(isClient ? 400 : 502).json({ success: false, message: error.message });
+  }
+}
+
+export async function scheduleCtrl(req, res) {
+  try {
+    const { scheduledAt } = req.body || {};
+    const result = await schedulePost(req.params.id, scheduledAt);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Erreur schedule :", error);
+    const isClient =
+      error.message.includes("obligatoire") ||
+      error.message.includes("introuvable") ||
+      error.message.includes("invalide") ||
+      error.message.includes("futur") ||
+      error.message.includes("déjà publié") ||
+      error.message.includes("supprimé");
+    return res.status(isClient ? 400 : 500).json({ success: false, message: error.message });
+  }
+}
+
+export async function cancelScheduleCtrl(req, res) {
+  try {
+    const result = await cancelSchedule(req.params.id);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Erreur cancelSchedule :", error);
+    const isClient =
+      error.message.includes("obligatoire") ||
+      error.message.includes("introuvable") ||
+      error.message.includes("programmé");
+    return res.status(isClient ? 400 : 500).json({ success: false, message: error.message });
   }
 }

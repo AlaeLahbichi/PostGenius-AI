@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Logo, C, GRAD } from "../theme";
+import { ScheduleInline } from "../generated/shared";
 
 const API = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000") + "/generate";
 
@@ -180,12 +181,14 @@ export default function GeneratePage() {
   const [loadingStep, setLoadingStep] = useState(false);
 
   const [generated, setGenerated] = useState("");
-  const [genMeta, setGenMeta] = useState<{ relatedCount: number; examplesUsed: number } | null>(null);
+  const [genMeta, setGenMeta] = useState<{ relatedCount: number; examplesUsed: number; voiceExamplesUsed: number } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [image, setImage] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
+  const [showSchedule, setShowSchedule] = useState(false);
 
   const stepDef = STEPS[step - 1];
 
@@ -308,7 +311,7 @@ export default function GeneratePage() {
         return;
       }
       setGenerated(json.post_text || "");
-      setGenMeta({ relatedCount: json.relatedCount || 0, examplesUsed: json.examplesUsed || 0 });
+      setGenMeta({ relatedCount: json.relatedCount || 0, examplesUsed: json.examplesUsed || 0, voiceExamplesUsed: json.voiceExamplesUsed || 0 });
     } catch (e: any) {
       setError(e?.message || "Erreur de génération.");
     } finally {
@@ -316,12 +319,39 @@ export default function GeneratePage() {
     }
   }
 
-  async function save(publish: boolean) {
+  const MAX_IMAGE_BYTES = 4.5 * 1024 * 1024;
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permet de resélectionner le même fichier après suppression
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Le fichier joint doit être une image.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError("Image trop volumineuse (4,5 Mo max).");
+      return;
+    }
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = String(reader.result || "").split(",")[1] || "";
+      setImage({ base64, mimeType: file.type, name: file.name });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /**
+   * Enregistre le brouillon, puis selon `mode` : le laisse en brouillon,
+   * le publie immédiatement sur LinkedIn, ou le programme pour plus tard.
+   * L'enregistrement lui-même se fait toujours en brouillon côté serveur.
+   */
+  async function save(mode: "draft" | "publish" | "schedule", scheduledAtIso?: string) {
     setSaving(true);
     setError(null);
     setNotice(null);
     try {
-      // L'enregistrement se fait toujours en brouillon côté serveur.
       const res = await fetch(`${API}/save`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -337,6 +367,8 @@ export default function GeneratePage() {
           tones: sel.tones,
           formats: sel.formats,
           post_text: generated,
+          image_base64: image?.base64 ?? null,
+          image_mime_type: image?.mimeType ?? null,
         }),
       });
       const json = await res.json();
@@ -345,9 +377,29 @@ export default function GeneratePage() {
         return;
       }
 
-      if (!publish) {
+      if (mode === "draft") {
         setNotice("Post enregistré en brouillon.");
         setSaved(true);
+        return;
+      }
+
+      if (mode === "schedule" && scheduledAtIso) {
+        const scheduleRes = await fetch(`${API}/created/${json.id}/schedule`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scheduledAt: scheduledAtIso }),
+        });
+        const scheduleJson = await scheduleRes.json();
+        if (!scheduleJson.success) {
+          setError(
+            `Post enregistré en brouillon, mais la programmation a échoué : ${scheduleJson.message || "erreur inconnue."}`
+          );
+          setSaved(true);
+          return;
+        }
+        setNotice(`Post programmé pour le ${new Date(scheduledAtIso).toLocaleString("fr-FR")}.`);
+        setSaved(true);
+        setShowSchedule(false);
         return;
       }
 
@@ -496,7 +548,9 @@ export default function GeneratePage() {
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 800 }}>Post généré</div>
                   <div style={{ fontSize: 12.5, color: C.textSecondary }}>
-                    {genMeta ? `${genMeta.examplesUsed} exemples utilisés · ${genMeta.relatedCount} posts liés` : "Basé sur tes choix et les posts liés."}
+                    {genMeta
+                      ? `${genMeta.examplesUsed} exemples utilisés · ${genMeta.relatedCount} posts liés${genMeta.voiceExamplesUsed > 0 ? ` · calqué sur ta voix (${genMeta.voiceExamplesUsed} de tes posts)` : ""}`
+                      : "Basé sur tes choix et les posts liés."}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -526,22 +580,48 @@ export default function GeneratePage() {
                 />
               )}
 
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center" }}>
-                {saved && (
-                  <button
-                    onClick={() => router.push("/dashboard")}
-                    style={{ marginRight: "auto", background: C.card, color: C.cyan, border: `1px solid ${C.cyan}`, borderRadius: 12, padding: "11px 20px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
-                  >
-                    ← Retour au dashboard
-                  </button>
+              {/* Image jointe (optionnelle) */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 8, background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 14px", fontSize: 13, fontWeight: 600, color: C.textMain, cursor: "pointer" }}>
+                  📷 {image ? "Changer l'image" : "Joindre une image"}
+                  <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: "none" }} />
+                </label>
+                {image && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <img src={`data:${image.mimeType};base64,${image.base64}`} alt={image.name} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: `1px solid ${C.border}` }} />
+                    <span style={{ fontSize: 12.5, color: C.textSecondary, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{image.name}</span>
+                    <button onClick={() => setImage(null)} style={{ background: "transparent", border: "none", color: C.red, fontSize: 12.5, cursor: "pointer", fontWeight: 700 }}>
+                      Retirer
+                    </button>
+                  </div>
                 )}
-                <button onClick={() => save(false)} disabled={saving || !generated.trim()} style={{ background: "transparent", color: C.amber, border: `1px solid ${C.amber}`, borderRadius: 12, padding: "11px 20px", fontWeight: 700, fontSize: 14, cursor: saving || !generated.trim() ? "not-allowed" : "pointer", opacity: !generated.trim() ? 0.5 : 1 }}>
-                  Enregistrer en brouillon
-                </button>
-                <button onClick={() => save(true)} disabled={saving || !generated.trim()} style={{ background: GRAD, color: "#fff", border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, fontSize: 14, cursor: saving || !generated.trim() ? "not-allowed" : "pointer", opacity: !generated.trim() ? 0.5 : 1 }}>
-                  {saving ? "Publication…" : "Publier sur LinkedIn"}
-                </button>
               </div>
+
+              {showSchedule ? (
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <ScheduleInline busy={saving} onCancel={() => setShowSchedule(false)} onConfirm={(iso) => save("schedule", iso)} />
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center" }}>
+                  {saved && (
+                    <button
+                      onClick={() => router.push("/dashboard")}
+                      style={{ marginRight: "auto", background: C.card, color: C.cyan, border: `1px solid ${C.cyan}`, borderRadius: 12, padding: "11px 20px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
+                    >
+                      ← Retour au dashboard
+                    </button>
+                  )}
+                  <button onClick={() => save("draft")} disabled={saving || !generated.trim()} style={{ background: "transparent", color: C.amber, border: `1px solid ${C.amber}`, borderRadius: 12, padding: "11px 20px", fontWeight: 700, fontSize: 14, cursor: saving || !generated.trim() ? "not-allowed" : "pointer", opacity: !generated.trim() ? 0.5 : 1 }}>
+                    Enregistrer en brouillon
+                  </button>
+                  <button onClick={() => setShowSchedule(true)} disabled={saving || !generated.trim()} style={{ background: "transparent", color: C.blue, border: `1px solid ${C.blue}`, borderRadius: 12, padding: "11px 20px", fontWeight: 700, fontSize: 14, cursor: saving || !generated.trim() ? "not-allowed" : "pointer", opacity: !generated.trim() ? 0.5 : 1 }}>
+                    Programmer
+                  </button>
+                  <button onClick={() => save("publish")} disabled={saving || !generated.trim()} style={{ background: GRAD, color: "#fff", border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, fontSize: 14, cursor: saving || !generated.trim() ? "not-allowed" : "pointer", opacity: !generated.trim() ? 0.5 : 1 }}>
+                    {saving ? "Publication…" : "Publier sur LinkedIn"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </Card>

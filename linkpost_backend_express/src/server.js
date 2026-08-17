@@ -3,6 +3,7 @@ import "dotenv/config";
 import app from "./app.js";
 
 import { connectMongo } from "../config/mongodb.js";
+import { startPublishScheduler } from "../services/publishScheduler.service.js";
 
 const PORT = process.env.PORT || 3000;
 
@@ -23,6 +24,8 @@ async function startServer() {
         console.log("MongoDB connecté.");
 
         console.log("");
+
+        startPublishScheduler();
 
         app.listen(PORT, () => {
 

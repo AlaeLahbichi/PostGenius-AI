@@ -75,14 +75,27 @@ export async function insertCreatedPost(doc) {
 
 /**
  * Liste les postes générés, éventuellement filtrés par statut(s)
- * ("brouillon", "shared", "supprime"). Sans filtre : tous les statuts.
+ * ("brouillon", "programme", "shared", "supprime"). Sans filtre : tous
+ * les statuts. L'image (potentiellement lourde) n'est jamais renvoyée
+ * dans une liste — seule sa présence (image_mime_type) l'est.
  */
 export async function listCreatedPosts(statuses) {
   const col = getCollection(CREATED);
   const filter = Array.isArray(statuses) && statuses.length > 0
     ? { status: { $in: statuses } }
     : {};
-  return await col.find(filter).sort({ created_at: -1 }).toArray();
+  return await col
+    .find(filter, { projection: { image_base64: 0 } })
+    .sort({ created_at: -1 })
+    .toArray();
+}
+
+/**
+ * Postes programmés ("programme") dont l'heure de publication est arrivée.
+ */
+export async function findDueScheduledPosts(now = new Date()) {
+  const col = getCollection(CREATED);
+  return await col.find({ status: "programme", scheduled_at: { $lte: now } }).toArray();
 }
 
 /**

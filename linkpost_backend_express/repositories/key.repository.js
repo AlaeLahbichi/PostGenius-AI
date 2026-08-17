@@ -78,3 +78,28 @@ export async function getPostDates() {
   }
   return map;
 }
+
+/**
+ * Postes datés + interactions, séparément pour MES postes et pour les
+ * posts concurrents — utilisé par le calcul du meilleur moment pour
+ * publier (services/key.service.js), qui privilégie mes propres données
+ * et ne retombe sur les concurrents qu'en dernier recours.
+ */
+export async function getDatedPosts() {
+  const projection = { id: 1, date_posted: 1, total_interactions: 1, reactions: 1, comments: 1 };
+  const shape = (p) => ({
+    id: String(p.id),
+    date_posted: p.date_posted || null,
+    interactions: Number(p.total_interactions ?? (Number(p.reactions || 0) + Number(p.comments || 0))) || 0,
+  });
+
+  const [concurrentPosts, ownPosts] = await Promise.all([
+    getCollection(CONCURRENT_POSTS).find({}, { projection }).toArray(),
+    getCollection(OWN_POSTS).find({}, { projection }).toArray(),
+  ]);
+
+  return {
+    own: ownPosts.filter((p) => p.id && p.date_posted).map(shape),
+    competitors: concurrentPosts.filter((p) => p.id && p.date_posted).map(shape),
+  };
+}

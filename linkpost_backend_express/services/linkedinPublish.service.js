@@ -71,15 +71,75 @@ export function buildShareText(postText, hashtags) {
 }
 
 /**
- * Publie un poste texte sur LinkedIn (visibilité publique).
+ * Enregistre puis envoie une image à LinkedIn (Assets API) pour l'attacher
+ * à une publication. Retourne l'urn de l'asset prêt à référencer dans
+ * ugcPosts (media.media). Deux appels : registerUpload (obtient une URL
+ * d'upload à usage unique), puis PUT du binaire sur cette URL.
+ */
+async function uploadImageAsset(imageBuffer) {
+  const token = getAccessToken();
+  const authorUrn = await getAuthorUrn();
+
+  const registerRes = await fetch(`${LINKEDIN_API_BASE}/assets?action=registerUpload`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-Restli-Protocol-Version": "2.0.0",
+    },
+    body: JSON.stringify({
+      registerUploadRequest: {
+        recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
+        owner: authorUrn,
+        serviceRelationships: [
+          { relationshipType: "OWNER", identifier: "urn:li:userGeneratedContent" },
+        ],
+      },
+    }),
+  });
+  const registerData = await registerRes.json().catch(() => ({}));
+  if (!registerRes.ok) {
+    throw new Error(
+      `LinkedIn a refusé l'enregistrement de l'image (${registerRes.status}) : ${registerData.message || JSON.stringify(registerData)}`
+    );
+  }
+
+  const uploadUrl =
+    registerData.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
+  const asset = registerData.value?.asset;
+  if (!uploadUrl || !asset) {
+    throw new Error("Réponse LinkedIn inattendue lors de l'enregistrement de l'image.");
+  }
+
+  const uploadRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: imageBuffer,
+  });
+  if (!uploadRes.ok) {
+    throw new Error(`Envoi de l'image à LinkedIn échoué (${uploadRes.status}).`);
+  }
+
+  return asset;
+}
+
+/**
+ * Publie un poste sur LinkedIn (visibilité publique), texte seul ou avec
+ * une image jointe (imageBase64, sans le préfixe "data:...;base64,").
  * Retourne l'id du poste créé (utile pour lien direct plus tard).
  */
-export async function publishToLinkedIn({ post_text, hashtags }) {
+export async function publishToLinkedIn({ post_text, hashtags, imageBase64 }) {
   const text = buildShareText(post_text, hashtags);
   if (!text) throw new Error("Le texte du post est vide, impossible de publier.");
 
   const authorUrn = await getAuthorUrn();
   const token = getAccessToken();
+
+  let media;
+  if (imageBase64) {
+    const asset = await uploadImageAsset(Buffer.from(imageBase64, "base64"));
+    media = [{ status: "READY", media: asset }];
+  }
 
   const res = await fetch(`${LINKEDIN_API_BASE}/ugcPosts`, {
     method: "POST",
@@ -94,7 +154,8 @@ export async function publishToLinkedIn({ post_text, hashtags }) {
       specificContent: {
         "com.linkedin.ugc.ShareContent": {
           shareCommentary: { text },
-          shareMediaCategory: "NONE",
+          shareMediaCategory: media ? "IMAGE" : "NONE",
+          ...(media ? { media } : {}),
         },
       },
       visibility: {

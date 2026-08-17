@@ -4,6 +4,7 @@ import {
   countAnalyses,
   getAnalysesPerf,
   getPostDates,
+  getDatedPosts,
 } from "../repositories/key.repository.js";
 
 /* ============================ Helpers ============================ */
@@ -241,4 +242,124 @@ export async function getTimeline({ dimKey, value = null, granularity = "day" })
     totalPosts: ids.length,
     series,
   };
+}
+
+/* ============================ Meilleur moment pour publier ============================ */
+
+const DAY_LABELS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+const PART_LABELS = ["nuit (0h–6h)", "matin (6h–12h)", "après-midi (12h–18h)", "soir (18h–24h)"];
+
+// En dessous de ce nombre de postes datés, mes propres données sont trop
+// rares pour être fiables : on retombe sur le benchmark concurrent.
+const MIN_OWN_SAMPLE = 5;
+
+function capitalize(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function partOfDay(hour) {
+  if (hour < 6) return 0;
+  if (hour < 12) return 1;
+  if (hour < 18) return 2;
+  return 3;
+}
+
+/**
+ * Regroupe des posts datés (id, date_posted, interactions) par créneau
+ * jour-de-semaine × moment-de-la-journée, et calcule l'indice d'impact
+ * de chaque créneau par rapport à la moyenne de l'échantillon fourni.
+ */
+export function computeBestTimesFromPosts(posts) {
+  const buckets = new Map();
+
+  for (const p of posts) {
+    if (!p.date_posted) continue;
+    const dt = new Date(p.date_posted);
+    if (Number.isNaN(dt.getTime())) continue;
+    const day = dt.getDay();
+    const part = partOfDay(dt.getHours());
+    const key = `${day}-${part}`;
+    const b = buckets.get(key) || { day, part, count: 0, sum: 0 };
+    b.count += 1;
+    b.sum += p.interactions;
+    buckets.set(key, b);
+  }
+
+  const globalAvg = posts.length ? avg(posts.map((p) => p.interactions)) : 0;
+
+  const items = [...buckets.values()]
+    .map((b) => {
+      const { avgInteractions, impactIndex } = computeImpactIndex(
+        Array(b.count).fill(b.sum / b.count),
+        globalAvg
+      );
+      return {
+        day: b.day,
+        part: b.part,
+        label: `${capitalize(DAY_LABELS[b.day])} — ${PART_LABELS[b.part]}`,
+        sampleSize: b.count,
+        avgInteractions,
+        impactIndex,
+      };
+    })
+    .sort((a, b) => b.impactIndex - a.impactIndex || b.sampleSize - a.sampleSize);
+
+  return { globalAvg: Math.round(globalAvg), items };
+}
+
+/**
+ * Meilleur(s) créneau(x) pour publier. Basé en priorité sur MES postes
+ * (mes_postes) — c'est ce qui compte vraiment pour mon audience. En
+ * dessous d'un échantillon exploitable, retombe sur les posts concurrents
+ * analysés (benchmark du secteur), en le signalant via `dataSource`.
+ */
+export async function getBestTimes() {
+  const { own, competitors } = await getDatedPosts();
+
+  const useOwn = own.length >= MIN_OWN_SAMPLE;
+  const source = useOwn ? own : competitors;
+  const dataSource = useOwn ? "own" : source.length > 0 ? "competitors" : "none";
+
+  if (source.length === 0) {
+    return { success: true, dataSource: "none", sampleSize: 0, globalAvg: 0, best: [] };
+  }
+
+  const { globalAvg, items } = computeBestTimesFromPosts(source);
+  // On privilégie les créneaux avec au moins 2 posts pour éviter qu'un
+  // post isolé ne fausse la recommandation ; à défaut, on montre ce qu'on a.
+  const reliable = items.filter((i) => i.sampleSize >= 2);
+  const best = (reliable.length > 0 ? reliable : items).slice(0, 3);
+
+  return { success: true, dataSource, sampleSize: source.length, globalAvg, best };
+}
+
+/* ============================ Export CSV ============================ */
+
+function csvEscape(v) {
+  const s = String(v ?? "");
+  return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Rapport CSV des performances par dimension ("Caractéristiques"),
+ * exploitable dans Excel/Google Sheets — séparateur `;` pour la locale FR.
+ */
+export async function buildOverviewCsv() {
+  const overview = await getOverview();
+
+  const rows = [
+    ["Dimension", "Valeur", "Utilisations", "Interactions moyennes", "Indice d'impact", "Part d'usage (%)"],
+  ];
+  for (const dim of overview.dimensions) {
+    for (const item of dim.items) {
+      rows.push([dim.label, item.value, item.usage_count, item.avg_interactions, item.impact_index, item.usage_share]);
+    }
+  }
+
+  const meta =
+    `# PostGenius AI — rapport de performance\n` +
+    `# Généré le ${new Date().toLocaleString("fr-FR")}\n` +
+    `# Analyses totales : ${overview.kpis.totalAnalyses} · Moyenne globale d'interactions : ${overview.kpis.globalAvgInteractions}\n`;
+
+  return meta + rows.map((r) => r.map(csvEscape).join(";")).join("\n");
 }

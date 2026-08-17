@@ -74,6 +74,13 @@ type GlobalStats = {
   timeseries: Snapshot[];
 };
 
+type BestTimes = {
+  dataSource: "own" | "competitors" | "none";
+  sampleSize: number;
+  globalAvg: number;
+  best: Array<{ label: string; sampleSize: number; avgInteractions: number; impactIndex: number }>;
+};
+
 /* ---------- Repères de changement de jour (à insérer dans un graphe) ---------- */
 
 // Renvoie un tableau de <ReferenceLine> pour chaque changement de jour.
@@ -285,6 +292,7 @@ export default function Page() {
   const [granularity, setGranularity] = useState<Granularity>("hour");
 
   const [linkedinDaysRemaining, setLinkedinDaysRemaining] = useState<number | null>(null);
+  const [bestTimes, setBestTimes] = useState<BestTimes | null>(null);
 
   /* ---------- Chargement des données ---------- */
 
@@ -402,6 +410,15 @@ export default function Page() {
         if (json?.success && typeof json.daysRemaining === "number") {
           setLinkedinDaysRemaining(json.daysRemaining);
         }
+      })
+      .catch(() => {});
+
+    // Meilleur moment pour publier — best-effort, silencieux si pas assez
+    // de données datées disponibles.
+    fetch(`${API_BASE}/keys/best-times`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.success) setBestTimes(json);
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -561,6 +578,25 @@ export default function Page() {
               {autoRefresh ? "⏸ Stop auto" : "▶ Auto (5 min)"}
             </GhostButton>
 
+            <a
+              href={`${API_BASE}/keys/export.csv`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                background: "transparent",
+                color: C.textSecondary,
+                border: `1px solid ${C.border}`,
+                borderRadius: 12,
+                padding: "9px 16px",
+                fontWeight: 600,
+                fontSize: 14,
+                textDecoration: "none",
+              }}
+            >
+              ⇩ Rapport CSV
+            </a>
+
             <PrimaryButton onClick={syncNow} disabled={syncing}>
               {syncing ? "⟳ Sync…" : "⟳ Mettre à jour"}
             </PrimaryButton>
@@ -587,6 +623,44 @@ export default function Page() {
             <span style={{ color: C.textSecondary, fontSize: 13 }}>
               Régénère-le depuis le Token Generator LinkedIn (scopes w_member_social, openid, profile) et mets à jour LINKEDIN_ACCESS_TOKEN + LINKEDIN_TOKEN_ISSUED_AT dans .env.
             </span>
+          </Card>
+        )}
+
+        {/* ---------------- Meilleur moment pour publier ---------------- */}
+        {bestTimes && bestTimes.best.length > 0 && (
+          <Card style={{ marginBottom: 18 }}>
+            <Eyebrow>Meilleur moment pour publier</Eyebrow>
+            <div style={{ fontSize: 12.5, color: C.textSecondary, marginBottom: 14 }}>
+              {bestTimes.dataSource === "own"
+                ? `Basé sur tes ${bestTimes.sampleSize} postes datés.`
+                : `Pas encore assez de postes à toi datés (benchmark basé sur ${bestTimes.sampleSize} posts concurrents analysés).`}
+            </div>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+              {bestTimes.best.map((b, i) => (
+                <div
+                  key={b.label}
+                  style={{
+                    flex: "1 1 220px",
+                    background: i === 0 ? "rgba(37,99,235,.12)" : C.bgSecondary,
+                    border: `1px solid ${i === 0 ? C.blue : C.border}`,
+                    borderRadius: 14,
+                    padding: 16,
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 800, color: C.textMain, marginBottom: 6 }}>
+                    {i === 0 ? "🏆 " : ""}
+                    {b.label}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: C.textSecondary }}>
+                    {b.impactIndex >= 1
+                      ? `+${Math.round((b.impactIndex - 1) * 100)}% vs moyenne`
+                      : `${Math.round((b.impactIndex - 1) * 100)}% vs moyenne`}
+                    {" · "}
+                    {fmtNum(b.avgInteractions)} interactions moy. ({b.sampleSize} post{b.sampleSize > 1 ? "s" : ""})
+                  </div>
+                </div>
+              ))}
+            </div>
           </Card>
         )}
 

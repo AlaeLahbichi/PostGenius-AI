@@ -7,12 +7,16 @@ import {
   listCreatedPosts,
   findCreatedPostById,
   updateCreatedPostStatus,
+  findDueScheduledPosts,
 } from "../repositories/generate.repository.js";
 import { publishToLinkedIn } from "./linkedinPublish.service.js";
+import { getTopOwnPostsByInteractions } from "../repositories/ownpost.repository.js";
 
 /**
  * Statuts valides d'un poste généré :
  * - brouillon : généré mais pas encore partagé.
+ * - programme : publication différée, publiée automatiquement à la date
+ *               choisie (voir schedulePost / publishScheduler.service.js).
  * - shared    : réellement publié sur LinkedIn (voir shareGeneratedPost).
  * - supprime  : suppression douce, le poste reste en base mais n'apparaît
  *               plus que dans la liste des postes supprimés.
@@ -212,6 +216,7 @@ Principes de rédaction :
 - Idées aérées : phrases courtes, sauts de ligne fréquents, une idée par ligne ou paragraphe.
 - Tu appliques RIGOUREUSEMENT les caractéristiques imposées (pattern, hook, angle, styles, tons, format).
 - Les exemples fournis servent UNIQUEMENT d'inspiration de registre, de structure et de rythme : tu ne copies JAMAIS une phrase, un chiffre, un nom propre ou une tournure spécifique.
+- Si des extraits de MES posts les plus performants sont fournis (bloc "MA VOIX PERSO"), calque-toi sur mes tournures récurrentes, mon rythme de phrase et mon niveau de formalité habituel — c'est ma voix, pas un exemple générique du secteur. En cas de conflit avec les caractéristiques imposées, les caractéristiques imposées gagnent.
 - Tu n'inventes AUCUN fait, chiffre, statistique, résultat ou citation qui ne t'a pas été fourni dans l'objectif ou l'audience. Si un exemple concret manque, reste général plutôt que d'halluciner un détail précis.
 - Tu intègres des @mentions pertinentes et plausibles quand c'est naturel (personnes/entreprises), sans inventer de fausses citations.
 - Zéro superlatif creux, zéro buzzword vide, 0 à 3 emojis maximum (seulement s'ils servent le propos).
@@ -257,11 +262,29 @@ async function gatherExamples(selections, perTotalCap = 12) {
   return { chosen, examples, relatedCount: allIds.length };
 }
 
+/**
+ * Extraits de MES posts les plus performants (mes_postes), utilisés comme
+ * référence de "voix perso" à la génération — jamais copiés, juste imités
+ * en registre/rythme. Best-effort : silencieux si aucun poste synchronisé.
+ */
+async function gatherVoiceExamples(limit = 3) {
+  try {
+    const posts = await getTopOwnPostsByInteractions(limit);
+    return posts
+      .map((p) => ({ text: String(p.post_text || "").trim(), interactions: p.total_interactions || 0 }))
+      .filter((p) => p.text)
+      .map((p) => ({ ...p, text: p.text.slice(0, 500) }));
+  } catch {
+    return [];
+  }
+}
+
 export async function generatePost(selections) {
   const objective = String(selections.objective || "").trim();
   if (!objective) throw new Error("L'objectif du post est obligatoire.");
 
   const { chosen, examples, relatedCount } = await gatherExamples(selections);
+  const voiceExamples = await gatherVoiceExamples();
 
   const criteriaBlock = chosen.map((c) => `- ${c.label}`).join("\n") || "- (aucune caractéristique choisie)";
   const examplesBlock =
@@ -270,6 +293,12 @@ export async function generatePost(selections) {
           .map((e, i) => `Exemple ${i + 1} [${e.matched.join(", ")}] — ${e.interactions} interactions :\n"""${e.text}"""`)
           .join("\n\n")
       : "Aucun exemple disponible.";
+  const voiceBlock =
+    voiceExamples.length > 0
+      ? voiceExamples
+          .map((e, i) => `Extrait ${i + 1} (${e.interactions} interactions) :\n"""${e.text}"""`)
+          .join("\n\n")
+      : null;
 
   const lengthMap = { court: "court (60–120 mots)", moyen: "moyen (120–200 mots)", long: "long (200–320 mots)" };
   const lengthLabel = lengthMap[selections.length] || lengthMap.moyen;
@@ -284,7 +313,7 @@ ${criteriaBlock}
 
 EXEMPLES INSPIRANTS (posts réels ayant utilisé ces caractéristiques — inspiration de registre/structure UNIQUEMENT, ne rien copier) :
 ${examplesBlock}
-
+${voiceBlock ? `\nMA VOIX PERSO (mes posts les plus performants — calque-toi sur mon style d'écriture, ne rien copier) :\n${voiceBlock}\n` : ""}
 Rédige maintenant le nouveau post en respectant TOUTES les caractéristiques ci-dessus. Réponds uniquement avec l'objet JSON demandé.`;
 
   const content = await callOpenRouter(GEN_SYSTEM, userPrompt);
@@ -302,12 +331,24 @@ Rédige maintenant le nouveau post en respectant TOUTES les caractéristiques ci
   }
   if (!post_text) throw new Error("Le modèle n'a pas renvoyé de texte.");
 
-  return { success: true, post_text, hashtags, mentions, relatedCount, examplesUsed: examples.length };
+  return {
+    success: true,
+    post_text,
+    hashtags,
+    mentions,
+    relatedCount,
+    examplesUsed: examples.length,
+    voiceExamplesUsed: voiceExamples.length,
+  };
 }
 
 /* ================================================================== */
 /*  Sauvegarde (brouillon / partagé)                                  */
 /* ================================================================== */
+
+// Taille max d'une image jointe (base64), pour éviter de saturer le
+// document Mongo (limite dure : 16 Mo/doc) avec une seule photo.
+const MAX_IMAGE_BASE64_LENGTH = 6 * 1024 * 1024; // ~4,5 Mo d'image décodée
 
 export async function savePost(payload) {
   // Toujours enregistré en brouillon : le statut "shared" ne peut plus être
@@ -315,6 +356,11 @@ export async function savePost(payload) {
   const status = "brouillon";
   const post_text = String(payload.post_text ?? "").trim();
   if (!post_text) throw new Error("Le texte du post est vide.");
+
+  const imageBase64 = payload.image_base64 ? String(payload.image_base64) : null;
+  if (imageBase64 && imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
+    throw new Error("Image trop volumineuse (4,5 Mo max).");
+  }
 
   const doc = {
     objective: payload.objective ?? null,
@@ -331,6 +377,8 @@ export async function savePost(payload) {
     mentions: payload.mentions ?? [],
     post_text,
     status,
+    image_base64: imageBase64,
+    image_mime_type: imageBase64 ? String(payload.image_mime_type || "image/jpeg") : null,
   };
 
   const id = await insertCreatedPost(doc);
@@ -383,9 +431,87 @@ export async function shareGeneratedPost(id) {
   const { linkedinPostId } = await publishToLinkedIn({
     post_text: post.post_text,
     hashtags: post.hashtags,
+    imageBase64: post.image_base64 || null,
   });
 
-  await updateCreatedPostStatus(id, "shared", { linkedin_post_id: linkedinPostId || null });
+  await updateCreatedPostStatus(id, "shared", {
+    linkedin_post_id: linkedinPostId || null,
+    scheduled_at: null,
+  });
 
   return { success: true, id, status: "shared", linkedinPostId };
+}
+
+/* ================================================================== */
+/*  Publication différée (programmation)                              */
+/* ================================================================== */
+
+/**
+ * Programme la publication d'un brouillon à une date future : le statut
+ * passe à "programme", et publishScheduler.service.js le publiera
+ * automatiquement (via shareGeneratedPost) une fois la date atteinte.
+ */
+export async function schedulePost(id, scheduledAtRaw) {
+  if (!id) throw new Error("id est obligatoire.");
+
+  const scheduledAt = new Date(scheduledAtRaw);
+  if (Number.isNaN(scheduledAt.getTime())) {
+    throw new Error("Date de programmation invalide.");
+  }
+  if (scheduledAt.getTime() <= Date.now()) {
+    throw new Error("La date de programmation doit être dans le futur.");
+  }
+
+  const existing = await findCreatedPostById(id);
+  if (!existing) throw new Error("Poste introuvable.");
+  if (existing.status === "supprime") throw new Error("Impossible de programmer un poste supprimé.");
+  if (existing.status === "shared") throw new Error("Ce poste est déjà publié.");
+
+  await updateCreatedPostStatus(id, "programme", { scheduled_at: scheduledAt, schedule_error: null });
+  return { success: true, id, status: "programme", scheduledAt: scheduledAt.toISOString() };
+}
+
+/**
+ * Annule la programmation d'un poste : retour à "brouillon".
+ */
+export async function cancelSchedule(id) {
+  if (!id) throw new Error("id est obligatoire.");
+
+  const existing = await findCreatedPostById(id);
+  if (!existing) throw new Error("Poste introuvable.");
+  if (existing.status !== "programme") throw new Error("Ce poste n'est pas programmé.");
+
+  await updateCreatedPostStatus(id, "brouillon", { scheduled_at: null });
+  return { success: true, id, status: "brouillon" };
+}
+
+/**
+ * Publie tous les postes programmés dont l'heure est arrivée. Appelé
+ * périodiquement par publishScheduler.service.js — vit dans le process
+ * Node, continue même si personne n'a d'onglet ouvert (même principe que
+ * schedule.service.js pour l'auto-sync de mes_postes).
+ *
+ * Best-effort par poste : un échec (token expiré, scope manquant...) ne
+ * bloque pas les autres et repasse le poste en brouillon avec l'erreur
+ * tracée, plutôt que de retenter en boucle indéfiniment.
+ */
+export async function publishDuePosts() {
+  const due = await findDueScheduledPosts();
+  const results = [];
+
+  for (const post of due) {
+    const id = String(post._id);
+    try {
+      const r = await shareGeneratedPost(id);
+      results.push({ id, success: true, linkedinPostId: r.linkedinPostId });
+    } catch (error) {
+      results.push({ id, success: false, message: error.message });
+      await updateCreatedPostStatus(id, "brouillon", {
+        scheduled_at: null,
+        schedule_error: error.message,
+      });
+    }
+  }
+
+  return results;
 }
