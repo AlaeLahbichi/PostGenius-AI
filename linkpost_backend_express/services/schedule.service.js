@@ -104,15 +104,3 @@ export function getScheduleStatus() {
   };
 }
 
-/*
- * ------------------------------------------------------------------
- * Rendre l'auto-sync persistante au redémarrage du serveur (option) :
- *
- *   1. Sauvegarder { running, profileUrl, intervalMinutes } dans une
- *      collection MongoDB (ex. "settings") à chaque start/stop.
- *   2. Dans server.js, après connectMongo(), lire ce document et
- *      rappeler startSchedule(profileUrl, intervalMinutes) si running.
- *
- * Dis-le moi si tu veux cette version, je l'ajoute.
- * ------------------------------------------------------------------
- */

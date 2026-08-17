@@ -7,6 +7,8 @@ import {
   generateCtrl,
   saveCtrl,
   created,
+  updateCreatedStatusCtrl,
+  shareCreatedPostCtrl,
 } from "../controllers/generate.controller.js";
 
 const router = Router();
@@ -17,5 +19,7 @@ router.get("/related", related);
 router.post("/generate", generateCtrl);
 router.post("/save", saveCtrl);
 router.get("/created", created);
+router.patch("/created/:id/status", updateCreatedStatusCtrl);
+router.post("/created/:id/share", shareCreatedPostCtrl);
 
 export default router;

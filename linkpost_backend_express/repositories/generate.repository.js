@@ -1,3 +1,4 @@
+import { ObjectId } from "mongodb";
 import { getCollection } from "../config/mongodb.js";
 
 const CONCURRENT_POSTS = "concurrent_postes";
@@ -72,7 +73,36 @@ export async function insertCreatedPost(doc) {
   return res.insertedId;
 }
 
-export async function listCreatedPosts() {
+/**
+ * Liste les postes générés, éventuellement filtrés par statut(s)
+ * ("brouillon", "shared", "supprime"). Sans filtre : tous les statuts.
+ */
+export async function listCreatedPosts(statuses) {
   const col = getCollection(CREATED);
-  return await col.find().sort({ created_at: -1 }).toArray();
+  const filter = Array.isArray(statuses) && statuses.length > 0
+    ? { status: { $in: statuses } }
+    : {};
+  return await col.find(filter).sort({ created_at: -1 }).toArray();
+}
+
+/**
+ * Un poste généré par son id Mongo.
+ */
+export async function findCreatedPostById(id) {
+  if (!ObjectId.isValid(id)) return null;
+  const col = getCollection(CREATED);
+  return await col.findOne({ _id: new ObjectId(id) });
+}
+
+/**
+ * Change le statut d'un poste généré
+ * (ex. "brouillon" -> "shared", ou "supprime" pour une suppression douce).
+ */
+export async function updateCreatedPostStatus(id, status, extra = {}) {
+  if (!ObjectId.isValid(id)) return { matchedCount: 0 };
+  const col = getCollection(CREATED);
+  return await col.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { status, updated_at: new Date(), ...extra } }
+  );
 }

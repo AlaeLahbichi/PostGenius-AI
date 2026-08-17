@@ -5,7 +5,18 @@ import {
   getPostsByIds,
   insertCreatedPost,
   listCreatedPosts,
+  findCreatedPostById,
+  updateCreatedPostStatus,
 } from "../repositories/generate.repository.js";
+import { publishToLinkedIn } from "./linkedinPublish.service.js";
+
+/**
+ * Statuts valides d'un poste généré :
+ * - brouillon : généré mais pas encore partagé.
+ * - shared    : réellement publié sur LinkedIn (voir shareGeneratedPost).
+ * - supprime  : suppression douce, le poste reste en base mais n'apparaît
+ *               plus que dans la liste des postes supprimés.
+ */
 
 /* ================================================================== */
 /*  OpenRouter                                                         */
@@ -286,7 +297,9 @@ Rédige maintenant le nouveau post en respectant TOUTES les caractéristiques ci
 /* ================================================================== */
 
 export async function savePost(payload) {
-  const status = payload.status === "shared" ? "shared" : "brouillon";
+  // Toujours enregistré en brouillon : le statut "shared" ne peut plus être
+  // obtenu qu'en publiant réellement sur LinkedIn (voir shareGeneratedPost).
+  const status = "brouillon";
   const post_text = String(payload.post_text ?? "").trim();
   if (!post_text) throw new Error("Le texte du post est vide.");
 
@@ -311,6 +324,55 @@ export async function savePost(payload) {
   return { success: true, id, status };
 }
 
-export async function getCreated() {
-  return listCreatedPosts();
+export async function getCreated(statuses) {
+  return listCreatedPosts(statuses);
+}
+
+// "shared" ne se met plus à jour directement : il faut passer par
+// shareGeneratedPost, qui publie réellement sur LinkedIn avant de basculer
+// le statut. Évite qu'un poste soit marqué "partagé" sans l'être vraiment.
+const DIRECTLY_SETTABLE_STATUSES = ["brouillon", "supprime"];
+
+/**
+ * Change le statut d'un poste généré (brouillon <-> supprimé).
+ */
+export async function updateGeneratedPostStatus(id, status) {
+  if (!id) throw new Error("id est obligatoire.");
+  if (!DIRECTLY_SETTABLE_STATUSES.includes(status)) {
+    throw new Error(
+      status === "shared"
+        ? "Utilise la publication (\"Partager\") pour passer un poste en partagé."
+        : "Statut invalide."
+    );
+  }
+
+  const existing = await findCreatedPostById(id);
+  if (!existing) throw new Error("Poste introuvable.");
+
+  await updateCreatedPostStatus(id, status);
+  return { success: true, id, status };
+}
+
+/**
+ * Publie réellement le poste sur LinkedIn, puis marque son statut "shared".
+ * Si la publication échoue (token expiré, scope manquant, etc.), le statut
+ * n'est pas modifié.
+ */
+export async function shareGeneratedPost(id) {
+  if (!id) throw new Error("id est obligatoire.");
+
+  const post = await findCreatedPostById(id);
+  if (!post) throw new Error("Poste introuvable.");
+  if (post.status === "supprime") {
+    throw new Error("Impossible de partager un poste supprimé.");
+  }
+
+  const { linkedinPostId } = await publishToLinkedIn({
+    post_text: post.post_text,
+    hashtags: post.hashtags,
+  });
+
+  await updateCreatedPostStatus(id, "shared", { linkedin_post_id: linkedinPostId || null });
+
+  return { success: true, id, status: "shared", linkedinPostId };
 }
