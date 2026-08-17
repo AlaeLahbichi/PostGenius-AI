@@ -38,22 +38,31 @@ Concrètement, l'application permet de :
 ## Fonctionnalités
 
 ### 📊 Tableau de bord
-Statistiques globales sur les posts personnels synchronisés (réactions, commentaires, partages, interactions totales), évolution dans le temps avec granularité ajustable (heure/jour/semaine/mois/année), et synchronisation automatique planifiable.
+Statistiques globales sur les posts personnels synchronisés (réactions, commentaires, partages, interactions totales), évolution dans le temps avec granularité ajustable (heure/jour/semaine/mois/année), synchronisation automatique planifiable, et suivi de l'expiration du token de publication LinkedIn.
 
 ### ✨ Génération de posts assistée par IA
-Assistant en plusieurs étapes : objectif, audience, appel à l'action, longueur, puis choix guidé du pattern narratif, du hook, de l'angle d'attaque, du style, du ton et du format — avec des recommandations basées sur l'usage et la performance historique de chaque dimension. Le texte est généré via un LLM (OpenRouter).
+Assistant en plusieurs étapes : objectif, audience, appel à l'action, longueur, puis choix guidé du pattern narratif, du hook, de l'angle d'attaque, du style, du ton et du format — avec des recommandations basées sur l'usage et la performance historique de chaque dimension. Le texte est généré via un LLM (OpenRouter), en s'inspirant à la fois des posts concurrents analysés et **des posts personnels les plus performants** (« voix perso »), pour un résultat plus proche du style d'écriture réel de l'utilisateur. Une image peut être jointe au post avant publication.
 
 ### 🗂️ Postes générés
-Suivi des posts générés avec un vrai cycle de vie : **brouillon** → **publié** (après une publication réelle sur LinkedIn) ou **supprimé** (suppression douce, consultable séparément). Filtrage, aperçu du contenu complet, et actions directes (publier, supprimer).
+Suivi des posts générés avec un vrai cycle de vie : **brouillon** → **programmé** (publication différée) ou **publié** (après une publication réelle sur LinkedIn) → **supprimé** (suppression douce, consultable séparément). Filtrage, aperçu du contenu complet, et actions directes (publier, programmer, supprimer).
 
 ### 🔗 Publication réelle sur LinkedIn
-Intégration à l'API LinkedIn (UGC Posts) : le texte généré, complété des hashtags, est publié directement sur le profil LinkedIn de l'utilisateur. Un post n'est marqué "publié" dans l'application que si la publication a réellement réussi côté LinkedIn.
+Intégration à l'API LinkedIn (UGC Posts) : le texte généré, complété des hashtags et d'une éventuelle image jointe (Assets API LinkedIn), est publié directement sur le profil LinkedIn de l'utilisateur. Un post n'est marqué "publié" dans l'application que si la publication a réellement réussi côté LinkedIn.
+
+### 🕒 Publication différée
+Un brouillon peut être programmé à une date et une heure précises : un vérificateur tourne en tâche de fond côté serveur et publie automatiquement le post à l'heure choisie, même sans navigateur ouvert.
+
+### ⏰ Meilleur moment pour publier
+Calcul automatique, à partir des posts personnels datés (avec repli sur le benchmark concurrentiel si l'échantillon est encore trop petit), du ou des créneaux (jour de la semaine × moment de la journée) statistiquement les plus performants.
+
+### 🔁 Boucle de réconciliation
+Une fois qu'un post généré et publié via l'application est retrouvé dans la synchronisation LinkedIn, ses **vraies performances** (réactions, commentaires, partages) sont affichées dans son détail et réinjectées automatiquement dans le scoring des dimensions — les résultats réels, pas seulement ceux des concurrents, affinent les futures recommandations.
 
 ### 🕵️ Analyse concurrentielle
 Import des publications d'un profil concurrent, puis analyse automatique par IA de chaque post (format, type, style, angle, hook, pattern, structure, outils cités, mots-clés, résumé…).
 
 ### 🧬 Caractéristiques
-Vue croisée entre les dimensions analysées (styles, formats, angles, tons, structures, hooks…) et leur impact réel sur l'engagement, pour prioriser ce qui fonctionne.
+Vue croisée entre les dimensions analysées (styles, formats, angles, tons, structures, hooks…) et leur impact réel sur l'engagement, pour prioriser ce qui fonctionne. Export du rapport complet au format CSV.
 
 ### 📥 Import LinkedIn
 Récupération des posts d'un profil LinkedIn (le sien ou celui d'un concurrent) via Bright Data, avec filtres (période, volume).
@@ -154,6 +163,7 @@ npm install
 | `OPENROUTER_MODEL` | Modèle utilisé pour la génération |
 | `LINKEDIN_ACCESS_TOKEN` | Token OAuth LinkedIn (scopes `w_member_social`, `openid`, `profile`) |
 | `LINKEDIN_AUTHOR_URN` | *(optionnel)* `urn:li:person:...` — évite de redemander le scope profil à chaque régénération de token |
+| `LINKEDIN_TOKEN_ISSUED_AT` | *(recommandé)* Date de génération du token (`AAAA-MM-JJ`) — permet d'estimer son expiration (durée de vie standard : 60 jours) et d'afficher une alerte avant qu'il n'expire |
 
 **`linkpost-ai/.env.local`**
 
