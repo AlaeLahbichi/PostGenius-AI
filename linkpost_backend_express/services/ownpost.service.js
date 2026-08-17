@@ -6,6 +6,7 @@ import {
   findOwnPostById,
   aggregateGlobalHistory,
 } from "../repositories/ownpost.repository.js";
+import { reconcilePublishedPosts } from "./postReconciliation.service.js";
 
 /**
  * Base de l'API snapshot Bright Data (Dataset API v3).
@@ -51,7 +52,7 @@ function sleep(ms) {
  * Extrait les métriques d'un poste en gérant les
  * différents noms de champs renvoyés par Bright Data.
  */
-function extractMetrics(post) {
+export function extractMetrics(post) {
   const reactions = toNumber(
     post.reactions_count ??
       post.reaction_count ??
@@ -94,7 +95,7 @@ function extractMetrics(post) {
 /**
  * Construit un titre lisible pour l'affichage dashboard.
  */
-function buildTitle(post) {
+export function buildTitle(post) {
   const raw =
     post.title ||
     post.headline ||
@@ -113,7 +114,7 @@ function buildTitle(post) {
  * au premier niveau : on teste les variantes courantes,
  * puis on retombe sur l'URL (toujours unique) en dernier.
  */
-function resolveId(post) {
+export function resolveId(post) {
   const candidate =
     post.id ??
     post.post_id ??
@@ -136,7 +137,7 @@ function resolveId(post) {
  * Normalise un poste brut Bright Data en un document
  * exploitable par MongoDB et le dashboard.
  */
-function normalizeOwnPost(post) {
+export function normalizeOwnPost(post) {
   const metrics = extractMetrics(post);
   return {
     ...post,
@@ -296,6 +297,18 @@ export async function syncOwnPosts(profileUrl, { startDate = null, endDate = nul
   const capturedAt = new Date();
   const mongoResult = await upsertManyOwnPosts(normalized, capturedAt);
 
+  // Ferme la boucle : relie les postes générés fraîchement publiés à leur
+  // version réelle, et fait remonter leurs vraies performances dans le
+  // scoring des dimensions. Best-effort — ne doit jamais faire échouer
+  // la synchronisation elle-même.
+  let reconciled = 0;
+  try {
+    const reconciliation = await reconcilePublishedPosts(normalized);
+    reconciled = reconciliation.linked;
+  } catch (error) {
+    console.error("[reconciliation] échec :", error.message);
+  }
+
   return {
     success: true,
     async: false,
@@ -307,6 +320,7 @@ export async function syncOwnPosts(profileUrl, { startDate = null, endDate = nul
     // Diagnostic : postes rejetés (ex. id introuvable)
     skipped: mongoResult.errors.length,
     errors: mongoResult.errors,
+    reconciled,
     posts: normalized,
   };
 }

@@ -1,6 +1,7 @@
 import { getCollection } from "../config/mongodb.js";
 
 const CONCURRENT_POSTS = "concurrent_postes";
+const OWN_POSTS = "mes_postes";
 const ANALYSES = "posts_analyses";
 
 /**
@@ -54,15 +55,21 @@ export async function getAnalysesPerf() {
 }
 
 /**
- * Map post_id -> { date_posted, interactions } (à partir des posts importés).
+ * Map post_id -> { date_posted, interactions }, à partir des posts
+ * concurrents importés ET de mes propres posts (mes_postes) — ces derniers
+ * n'y contribuent que s'ils ont été reliés à un poste généré publié via
+ * l'app (voir postReconciliation.service.js) et appliqués à une dimension.
  */
 export async function getPostDates() {
   const map = new Map();
-  const posts = await getCollection(CONCURRENT_POSTS)
-    .find({}, { projection: { id: 1, date_posted: 1, total_interactions: 1, reactions: 1, comments: 1 } })
-    .toArray();
+  const projection = { id: 1, date_posted: 1, total_interactions: 1, reactions: 1, comments: 1 };
 
-  for (const p of posts) {
+  const [concurrentPosts, ownPosts] = await Promise.all([
+    getCollection(CONCURRENT_POSTS).find({}, { projection }).toArray(),
+    getCollection(OWN_POSTS).find({}, { projection }).toArray(),
+  ]);
+
+  for (const p of [...concurrentPosts, ...ownPosts]) {
     if (!p.id) continue;
     map.set(String(p.id), {
       date_posted: p.date_posted || null,

@@ -8,17 +8,28 @@ import {
 
 /* ============================ Helpers ============================ */
 
-function avg(arr) {
+export function avg(arr) {
   return arr.length ? arr.reduce((s, n) => s + n, 0) / arr.length : 0;
 }
 
-function canonical(v) {
+export function canonical(v) {
   return String(v)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+/**
+ * Score d'impact d'une valeur de dimension : sa moyenne d'interactions
+ * rapport\u00e9e \u00e0 la moyenne globale (1 = dans la moyenne, >1 = au-dessus).
+ * 0 si aucune donn\u00e9e exploitable.
+ */
+export function computeImpactIndex(scores, globalAvg) {
+  const a = scores.length ? Math.round(avg(scores)) : 0;
+  const impact = globalAvg > 0 ? Number((a / globalAvg).toFixed(2)) : 0;
+  return { avgInteractions: a, impactIndex: impact };
 }
 
 function pad(n) {
@@ -89,14 +100,13 @@ export async function getOverview() {
     const items = values.map((v) => {
       const ids = (v.post_ids || []).map(String);
       const scores = ids.map(interactionOf);
-      const a = scores.length ? Math.round(avg(scores)) : 0;
-      const impact = globalAvg > 0 ? Number((a / globalAvg).toFixed(2)) : 0;
+      const { avgInteractions, impactIndex } = computeImpactIndex(scores, globalAvg);
       return {
         value: v.value,
         slug: v.slug,
         usage_count: v.usage_count ?? ids.length,
-        avg_interactions: a,
-        impact_index: impact,
+        avg_interactions: avgInteractions,
+        impact_index: impactIndex,
       };
     });
 
@@ -160,13 +170,13 @@ export async function getDimensionDetail(dimKey) {
   const items = values.map((v) => {
     const ids = (v.post_ids || []).map(String);
     const scores = ids.map(interactionOf);
-    const a = scores.length ? Math.round(avg(scores)) : 0;
+    const { avgInteractions, impactIndex } = computeImpactIndex(scores, globalAvg);
     return {
       value: v.value,
       slug: v.slug,
       usage_count: v.usage_count ?? ids.length,
-      avg_interactions: a,
-      impact_index: globalAvg > 0 ? Number((a / globalAvg).toFixed(2)) : 0,
+      avg_interactions: avgInteractions,
+      impact_index: impactIndex,
     };
   });
 

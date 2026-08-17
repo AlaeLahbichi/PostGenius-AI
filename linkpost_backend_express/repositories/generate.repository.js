@@ -16,7 +16,7 @@ export const GEN_DIMS = {
   format: { collection: "dim_formats", label: "Format", multi: true },
 };
 
-function canonical(v) {
+export function canonical(v) {
   return String(v)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -104,5 +104,27 @@ export async function updateCreatedPostStatus(id, status, extra = {}) {
   return await col.updateOne(
     { _id: new ObjectId(id) },
     { $set: { status, updated_at: new Date(), ...extra } }
+  );
+}
+
+/**
+ * Postes publiés sur LinkedIn ("shared") mais pas encore reliés à leur
+ * version réellement synchronisée dans mes_postes (voir postReconciliation
+ * .service.js). Une fois reliés, leurs vraies performances alimentent le
+ * scoring des dimensions au même titre que l'analyse concurrentielle.
+ */
+export async function findUnlinkedSharedPosts() {
+  const col = getCollection(CREATED);
+  return await col.find({ status: "shared", own_post_id: { $exists: false } }).toArray();
+}
+
+/**
+ * Relie un poste généré à son poste réel (mes_postes) une fois resynchronisé.
+ */
+export async function linkCreatedPostToOwnPost(id, ownPostId) {
+  const col = getCollection(CREATED);
+  return await col.updateOne(
+    { _id: id },
+    { $set: { own_post_id: ownPostId, linked_at: new Date() } }
   );
 }
