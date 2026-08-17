@@ -44,6 +44,21 @@ function canonical(v) {
     .trim();
 }
 
+/**
+ * Tronque une cha\u00eene sans jamais couper au milieu d'une paire de
+ * substituts UTF-16 (emoji, etc.) \u2014 sinon on obtient un caract\u00e8re de
+ * substitution isol\u00e9, invalide en UTF-8, que l'API OpenRouter/le
+ * fournisseur du mod\u00e8le rejette (400 "Provider returned error").
+ */
+export function safeSlice(text, maxLen) {
+  if (text.length <= maxLen) return text;
+  let end = maxLen;
+  if (end > 0 && text.charCodeAt(end - 1) >= 0xd800 && text.charCodeAt(end - 1) <= 0xdbff) {
+    end -= 1;
+  }
+  return text.slice(0, end);
+}
+
 function extractJson(raw) {
   const cleaned = String(raw)
     .trim()
@@ -92,7 +107,10 @@ async function callOpenRouter(systemPrompt, userPrompt) {
     }
     if (aiRes.ok) return aiData?.choices?.[0]?.message?.content ?? "";
 
-    if (aiRes.status !== 429) throw new Error(`OpenRouter a répondu ${aiRes.status}.`);
+    if (aiRes.status !== 429) {
+      const detail = aiData?.error?.message || aiData?.message || responseText.slice(0, 500);
+      throw new Error(`OpenRouter a répondu ${aiRes.status}${detail ? ` : ${detail}` : ""}.`);
+    }
     if (attempt === OPENROUTER_MAX_RETRIES) throw new Error("Limite OpenRouter atteinte (429).");
     await sleep(getRetryDelayMs(aiRes, attempt));
   }
@@ -257,7 +275,7 @@ async function gatherExamples(selections, perTotalCap = 12) {
     .filter((e) => e.text)
     .sort((a, b) => b.matched.length - a.matched.length || b.interactions - a.interactions)
     .slice(0, perTotalCap)
-    .map((e) => ({ ...e, text: e.text.slice(0, 600) }));
+    .map((e) => ({ ...e, text: safeSlice(e.text, 600) }));
 
   return { chosen, examples, relatedCount: allIds.length };
 }
@@ -273,7 +291,7 @@ async function gatherVoiceExamples(limit = 3) {
     return posts
       .map((p) => ({ text: String(p.post_text || "").trim(), interactions: p.total_interactions || 0 }))
       .filter((p) => p.text)
-      .map((p) => ({ ...p, text: p.text.slice(0, 500) }));
+      .map((p) => ({ ...p, text: safeSlice(p.text, 500) }));
   } catch {
     return [];
   }
