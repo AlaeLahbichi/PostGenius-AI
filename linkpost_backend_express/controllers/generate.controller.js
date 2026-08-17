@@ -62,7 +62,10 @@ export async function generateCtrl(req, res) {
     return res.status(200).json(await generatePost(req.body || {}));
   } catch (error) {
     console.error("Erreur generate :", error);
-    return res.status(500).json({ success: false, message: error.message });
+    // Quota/limite OpenRouter : ce n'est pas une panne serveur, le client
+    // doit pouvoir le distinguer (429) d'une vraie erreur interne (500).
+    const isRateLimit = error.message.includes("429") || error.message.includes("Quota quotidien");
+    return res.status(isRateLimit ? 429 : 500).json({ success: false, message: error.message });
   }
 }
 

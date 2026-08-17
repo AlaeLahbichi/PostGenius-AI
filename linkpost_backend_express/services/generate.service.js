@@ -107,11 +107,30 @@ async function callOpenRouter(systemPrompt, userPrompt) {
     }
     if (aiRes.ok) return aiData?.choices?.[0]?.message?.content ?? "";
 
+    const detail = aiData?.error?.message || aiData?.message || responseText.slice(0, 500);
+
     if (aiRes.status !== 429) {
-      const detail = aiData?.error?.message || aiData?.message || responseText.slice(0, 500);
       throw new Error(`OpenRouter a répondu ${aiRes.status}${detail ? ` : ${detail}` : ""}.`);
     }
-    if (attempt === OPENROUTER_MAX_RETRIES) throw new Error("Limite OpenRouter atteinte (429).");
+
+    // Quota QUOTIDIEN du modèle gratuit épuisé : ce n'est pas une limite
+    // transitoire (par minute), donc inutile de réessayer avec un backoff
+    // de quelques secondes — ça ne reviendra pas avant le reset. On le
+    // détecte via le message OpenRouter et on échoue tout de suite avec
+    // un message actionnable (heure de reset si connue).
+    if (/per-day|daily/i.test(detail)) {
+      const resetHeader = aiRes.headers.get("x-ratelimit-reset") || aiData?.error?.metadata?.headers?.["X-RateLimit-Reset"];
+      const resetMs = Number(resetHeader);
+      const resetLabel = Number.isFinite(resetMs) && resetMs > 0
+        ? ` (réinitialisation ${new Date(resetMs).toLocaleString("fr-FR")})`
+        : "";
+      throw new Error(
+        `Quota quotidien OpenRouter atteint pour le modèle gratuit${resetLabel}. ` +
+          `Réessaie plus tard, ou ajoute des crédits sur OpenRouter pour lever la limite.`
+      );
+    }
+
+    if (attempt === OPENROUTER_MAX_RETRIES) throw new Error(`Limite OpenRouter atteinte (429)${detail ? ` : ${detail}` : ""}.`);
     await sleep(getRetryDelayMs(aiRes, attempt));
   }
   throw new Error("Impossible de contacter OpenRouter.");
