@@ -36,7 +36,7 @@ export type GeneratedPost = {
   created_at?: string;
   updated_at?: string;
   scheduled_at?: string | null;
-  image_mime_type?: string | null;
+  images?: { mime_type: string }[];
   own_post_id?: string | null;
   linked_at?: string | null;
   linkedin_post_id?: string | null;
@@ -52,6 +52,15 @@ export const STATUS_META: Record<PostStatus, { label: string; color: string }> =
 /* ------------------------------------------------------------------ */
 /*  Accès API                                                           */
 /* ------------------------------------------------------------------ */
+
+/**
+ * URLs des images jointes d'un poste (servies à la demande, une par
+ * une — jamais incluses dans la liste, voir listCreatedPosts côté
+ * backend), dans l'ordre où elles seront publiées.
+ */
+export function postImageUrls(post: Pick<GeneratedPost, "_id" | "images">): string[] {
+  return (post.images || []).map((_, i) => `${API}/created/${post._id}/images/${i}`);
+}
 
 export async function fetchGeneratedPosts(statuses: PostStatus[]): Promise<GeneratedPost[]> {
   const res = await fetch(`${API}/created?status=${statuses.join(",")}`, { cache: "no-store" });
@@ -346,11 +355,6 @@ export function PostDetailModal({
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <StatusBadge status={post.status} />
             <span style={{ fontSize: 12.5, color: C.textSecondary }}>{fmtDate(post.created_at)}</span>
-            {post.image_mime_type && (
-              <span style={{ fontSize: 12, color: C.cyan, background: "rgba(56,189,248,.12)", borderRadius: 999, padding: "4px 10px" }}>
-                📷 Image jointe
-              </span>
-            )}
           </div>
           <button
             onClick={onClose}
@@ -371,6 +375,25 @@ export function PostDetailModal({
         )}
 
         <div style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
+          {postImageUrls(post).length === 1 && (
+            <img
+              src={postImageUrls(post)[0]}
+              alt="Image jointe"
+              style={{ width: "100%", maxHeight: 360, objectFit: "cover", borderRadius: 12, marginBottom: 14, border: `1px solid ${C.border}` }}
+            />
+          )}
+          {postImageUrls(post).length > 1 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8, marginBottom: 14 }}>
+              {postImageUrls(post).map((url, i) => (
+                <img
+                  key={url}
+                  src={url}
+                  alt={`Image ${i + 1} jointe`}
+                  style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 10, border: `1px solid ${C.border}` }}
+                />
+              ))}
+            </div>
+          )}
           <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: "#e2e8f0", whiteSpace: "pre-line" }}>
             {post.post_text}
           </p>

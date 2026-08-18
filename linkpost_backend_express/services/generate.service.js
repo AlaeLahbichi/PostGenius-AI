@@ -6,10 +6,11 @@ import {
   insertCreatedPost,
   listCreatedPosts,
   findCreatedPostById,
+  findCreatedPostImages,
   updateCreatedPostStatus,
   findDueScheduledPosts,
 } from "../repositories/generate.repository.js";
-import { publishToLinkedIn } from "./linkedinPublish.service.js";
+import { publishToLinkedIn, MAX_IMAGES_PER_POST } from "./linkedinPublish.service.js";
 import { getTopOwnPostsByInteractions } from "../repositories/ownpost.repository.js";
 
 /**
@@ -384,8 +385,37 @@ Rédige maintenant le nouveau post en respectant TOUTES les caractéristiques ci
 /* ================================================================== */
 
 // Taille max d'une image jointe (base64), pour éviter de saturer le
-// document Mongo (limite dure : 16 Mo/doc) avec une seule photo.
+// document Mongo (limite dure : 16 Mo/doc) avec les photos d'un post.
 const MAX_IMAGE_BASE64_LENGTH = 6 * 1024 * 1024; // ~4,5 Mo d'image décodée
+
+/**
+ * Valide et normalise la liste d'images d'un poste (0 à
+ * MAX_IMAGES_PER_POST, alignée sur la limite LinkedIn — voir
+ * linkedinPublish.service.js). Accepte `payload.images` (nouveau format,
+ * plusieurs images) ou, par rétrocompatibilité, `payload.image_base64` /
+ * `image_mime_type` (ancien format, une seule image).
+ */
+function normalizeImages(payload) {
+  const raw = Array.isArray(payload.images) && payload.images.length > 0
+    ? payload.images
+    : payload.image_base64
+      ? [{ base64: payload.image_base64, mimeType: payload.image_mime_type }]
+      : [];
+
+  if (raw.length > MAX_IMAGES_PER_POST) {
+    throw new Error(`Trop d'images jointes (${raw.length}) — ${MAX_IMAGES_PER_POST} maximum par post.`);
+  }
+
+  return raw
+    .filter((img) => img?.base64)
+    .map((img) => {
+      const base64 = String(img.base64);
+      if (base64.length > MAX_IMAGE_BASE64_LENGTH) {
+        throw new Error("Une des images jointes est trop volumineuse (4,5 Mo max chacune).");
+      }
+      return { base64, mime_type: String(img.mimeType || img.mime_type || "image/jpeg") };
+    });
+}
 
 export async function savePost(payload) {
   // Toujours enregistré en brouillon : le statut "shared" ne peut plus être
@@ -394,10 +424,7 @@ export async function savePost(payload) {
   const post_text = String(payload.post_text ?? "").trim();
   if (!post_text) throw new Error("Le texte du post est vide.");
 
-  const imageBase64 = payload.image_base64 ? String(payload.image_base64) : null;
-  if (imageBase64 && imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
-    throw new Error("Image trop volumineuse (4,5 Mo max).");
-  }
+  const images = normalizeImages(payload);
 
   const doc = {
     objective: payload.objective ?? null,
@@ -414,8 +441,7 @@ export async function savePost(payload) {
     mentions: payload.mentions ?? [],
     post_text,
     status,
-    image_base64: imageBase64,
-    image_mime_type: imageBase64 ? String(payload.image_mime_type || "image/jpeg") : null,
+    images,
   };
 
   const id = await insertCreatedPost(doc);
@@ -424,6 +450,32 @@ export async function savePost(payload) {
 
 export async function getCreated(statuses) {
   return listCreatedPosts(statuses);
+}
+
+/**
+ * Reconstitue la liste d'images d'un poste, en gérant l'ancien format
+ * (un seul champ image_base64/image_mime_type) comme un tableau à une
+ * seule entrée — pour que le reste du code n'ait qu'un seul format à
+ * connaître.
+ */
+function imagesOf(post) {
+  if (Array.isArray(post?.images) && post.images.length > 0) return post.images;
+  if (post?.image_base64) return [{ base64: post.image_base64, mime_type: post.image_mime_type || "image/jpeg" }];
+  return [];
+}
+
+/**
+ * Une image (par index) d'un poste généré (brouillon, programmé ou
+ * partagé), servie à la demande (jamais incluse dans la liste — voir
+ * listCreatedPosts).
+ */
+export async function getCreatedPostImage(id, index) {
+  if (!id) throw new Error("id est obligatoire.");
+  const post = await findCreatedPostImages(id);
+  const images = imagesOf(post);
+  const img = images[index];
+  if (!img) throw new Error("Image introuvable.");
+  return { image_base64: img.base64, image_mime_type: img.mime_type || "image/jpeg" };
 }
 
 // "shared" ne se met plus à jour directement : il faut passer par
@@ -468,7 +520,7 @@ export async function shareGeneratedPost(id) {
   const { linkedinPostId } = await publishToLinkedIn({
     post_text: post.post_text,
     hashtags: post.hashtags,
-    imageBase64: post.image_base64 || null,
+    images: imagesOf(post),
   });
 
   await updateCreatedPostStatus(id, "shared", {

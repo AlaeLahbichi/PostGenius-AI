@@ -15,6 +15,15 @@
  */
 
 const LINKEDIN_API_BASE = "https://api.linkedin.com/v2";
+const LINKEDIN_REST_BASE = "https://api.linkedin.com/rest";
+
+// Version des API REST versionnées LinkedIn (obligatoire sur /rest/*,
+// header "LinkedIn-Version"). LinkedIn ne garde qu'une fenêtre glissante
+// de versions actives (~12 mois) : si cette valeur finit par être trop
+// ancienne, LinkedIn répond 426 "NONEXISTENT_VERSION" — dans ce cas,
+// relever LINKEDIN_API_VERSION dans .env avec une version plus récente
+// (format AAAAMM, voir la doc LinkedIn "API Versioning").
+const LINKEDIN_API_VERSION = process.env.LINKEDIN_API_VERSION || "202503";
 
 let cachedAuthorUrn = null;
 
@@ -71,44 +80,38 @@ export function buildShareText(postText, hashtags) {
 }
 
 /**
- * Enregistre puis envoie une image à LinkedIn (Assets API) pour l'attacher
- * à une publication. Retourne l'urn de l'asset prêt à référencer dans
- * ugcPosts (media.media). Deux appels : registerUpload (obtient une URL
- * d'upload à usage unique), puis PUT du binaire sur cette URL.
+ * Envoie une image à LinkedIn via l'API REST Images (successeur de
+ * l'ancienne Assets API "/v2/assets" + "/v2/ugcPosts", qui pouvait
+ * répondre 200 sans jamais réellement publier le post avec son image —
+ * un problème connu de cette ancienne API). Deux appels : initializeUpload
+ * (obtient une URL d'upload à usage unique), puis PUT du binaire.
+ * Retourne l'urn "urn:li:image:..." prêt à référencer dans /rest/posts.
  */
-async function uploadImageAsset(imageBuffer) {
+export async function uploadImage(imageBuffer) {
   const token = getAccessToken();
   const authorUrn = await getAuthorUrn();
 
-  const registerRes = await fetch(`${LINKEDIN_API_BASE}/assets?action=registerUpload`, {
+  const initRes = await fetch(`${LINKEDIN_REST_BASE}/images?action=initializeUpload`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": LINKEDIN_API_VERSION,
     },
-    body: JSON.stringify({
-      registerUploadRequest: {
-        recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
-        owner: authorUrn,
-        serviceRelationships: [
-          { relationshipType: "OWNER", identifier: "urn:li:userGeneratedContent" },
-        ],
-      },
-    }),
+    body: JSON.stringify({ initializeUploadRequest: { owner: authorUrn } }),
   });
-  const registerData = await registerRes.json().catch(() => ({}));
-  if (!registerRes.ok) {
+  const initData = await initRes.json().catch(() => ({}));
+  if (!initRes.ok) {
     throw new Error(
-      `LinkedIn a refusé l'enregistrement de l'image (${registerRes.status}) : ${registerData.message || JSON.stringify(registerData)}`
+      `LinkedIn a refusé l'initialisation de l'upload d'image (${initRes.status}) : ${initData.message || JSON.stringify(initData)}`
     );
   }
 
-  const uploadUrl =
-    registerData.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
-  const asset = registerData.value?.asset;
-  if (!uploadUrl || !asset) {
-    throw new Error("Réponse LinkedIn inattendue lors de l'enregistrement de l'image.");
+  const uploadUrl = initData.value?.uploadUrl;
+  const image = initData.value?.image;
+  if (!uploadUrl || !image) {
+    throw new Error("Réponse LinkedIn inattendue lors de l'initialisation de l'upload d'image.");
   }
 
   const uploadRes = await fetch(uploadUrl, {
@@ -117,29 +120,128 @@ async function uploadImageAsset(imageBuffer) {
     body: imageBuffer,
   });
   if (!uploadRes.ok) {
-    throw new Error(`Envoi de l'image à LinkedIn échoué (${uploadRes.status}).`);
+    const uploadDetail = await uploadRes.text().catch(() => "");
+    throw new Error(
+      `Envoi de l'image à LinkedIn échoué (${uploadRes.status})${uploadDetail ? ` : ${uploadDetail.slice(0, 300)}` : ""}.`
+    );
   }
 
-  return asset;
+  await waitForImageReady(image, token);
+  return image;
 }
 
 /**
- * Publie un poste sur LinkedIn (visibilité publique), texte seul ou avec
- * une image jointe (imageBase64, sans le préfixe "data:...;base64,").
- * Retourne l'id du poste créé (utile pour lien direct plus tard).
+ * LinkedIn traite l'image de façon asynchrone après l'upload. On attend
+ * qu'elle passe à "AVAILABLE" avant de la référencer dans /rest/posts —
+ * et surtout, on échoue explicitement si LinkedIn signale
+ * "PROCESSING_FAILED" (ex. image trop petite/corrompue), plutôt que de
+ * laisser passer une publication qui ne montrera jamais l'image.
  */
-export async function publishToLinkedIn({ post_text, hashtags, imageBase64 }) {
-  const text = buildShareText(post_text, hashtags);
-  if (!text) throw new Error("Le texte du post est vide, impossible de publier.");
+async function waitForImageReady(imageUrn, token, { attempts = 8, delayMs = 1000 } = {}) {
+  for (let i = 0; i < attempts; i += 1) {
+    const res = await fetch(`${LINKEDIN_REST_BASE}/images/${encodeURIComponent(imageUrn)}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Restli-Protocol-Version": "2.0.0",
+        "LinkedIn-Version": LINKEDIN_API_VERSION,
+      },
+    });
+    const data = await res.json().catch(() => ({}));
+    const status = data?.status ?? null;
 
-  const authorUrn = await getAuthorUrn();
-  const token = getAccessToken();
-
-  let media;
-  if (imageBase64) {
-    const asset = await uploadImageAsset(Buffer.from(imageBase64, "base64"));
-    media = [{ status: "READY", media: asset }];
+    if (status === "AVAILABLE") return;
+    if (status === "PROCESSING_FAILED") {
+      // Cause confirmée en pratique : une résolution trop élevée (testé :
+      // 6250×6250 échoue, 2500×2500 passe). Le frontend redimensionne
+      // déjà les images avant envoi (voir resizeImageIfNeeded côté
+      // create/page.tsx) — ce cas ne devrait plus survenir que si l'image
+      // vient d'ailleurs (API appelée directement, etc.).
+      throw new Error(
+        "LinkedIn n'a pas réussi à traiter l'image envoyée (statut PROCESSING_FAILED) — " +
+          "généralement causé par une résolution trop élevée. Réessaie avec une image plus petite (max ~2500px de côté)."
+      );
+    }
+    await new Promise((r) => setTimeout(r, delayMs));
   }
+  throw new Error("L'image envoyée à LinkedIn n'est toujours pas prête après plusieurs secondes d'attente.");
+}
+
+// LinkedIn limite le nombre d'images sur une seule publication. On
+// s'aligne dessus côté appli (validé aussi à la sauvegarde, voir
+// generate.service.js) pour échouer tôt avec un message clair plutôt
+// que de laisser LinkedIn refuser la publication en fin de parcours.
+export const MAX_IMAGES_PER_POST = 10;
+
+/**
+ * Publie un post AVEC une ou plusieurs images via la nouvelle API REST
+ * (/rest/posts + /rest/images) — l'ancienne combinaison "/v2/assets" +
+ * "/v2/ugcPosts" pouvait répondre 200 sans jamais réellement publier
+ * l'image (post "fantôme", jamais visible sur le profil malgré le succès
+ * apparent). Une seule image -> content.media ; plusieurs -> content.
+ * multiImage (carrousel), dans l'ordre fourni.
+ */
+async function publishWithImages({ text, images }) {
+  const token = getAccessToken();
+  const authorUrn = await getAuthorUrn();
+
+  // Upload séquentiel : plus lent que du parallèle, mais évite de
+  // bombarder l'API LinkedIn de N requêtes simultanées pour un post à
+  // 10 images, et rend un échec sur l'une d'elles simple à situer.
+  const uploaded = [];
+  for (const img of images) {
+    const urn = await uploadImage(Buffer.from(img.base64, "base64"));
+    uploaded.push(urn);
+  }
+
+  const content =
+    uploaded.length === 1
+      ? { media: { id: uploaded[0] } }
+      : { multiImage: { images: uploaded.map((id) => ({ id })) } };
+
+  const res = await fetch(`${LINKEDIN_REST_BASE}/posts`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": LINKEDIN_API_VERSION,
+    },
+    body: JSON.stringify({
+      author: authorUrn,
+      commentary: text,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
+      content,
+      lifecycleState: "PUBLISHED",
+      isReshareDisabledByAuthor: false,
+    }),
+  });
+
+  const linkedinPostId = res.headers.get("x-restli-id") || res.headers.get("x-linkedin-id");
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(
+      `LinkedIn a refusé la publication avec image (${res.status}) : ${data.message || JSON.stringify(data)}`
+    );
+  }
+
+  return { linkedinPostId: linkedinPostId || data.id || null };
+}
+
+/**
+ * Publie un post texte seul via l'API historique "/v2/ugcPosts" —
+ * inchangée volontairement : ce chemin est fiable et déjà éprouvé, on ne
+ * migre que le chemin avec image (voir publishWithImage) vers la
+ * nouvelle API.
+ */
+async function publishTextOnly({ text }) {
+  const token = getAccessToken();
+  const authorUrn = await getAuthorUrn();
 
   const res = await fetch(`${LINKEDIN_API_BASE}/ugcPosts`, {
     method: "POST",
@@ -154,8 +256,7 @@ export async function publishToLinkedIn({ post_text, hashtags, imageBase64 }) {
       specificContent: {
         "com.linkedin.ugc.ShareContent": {
           shareCommentary: { text },
-          shareMediaCategory: media ? "IMAGE" : "NONE",
-          ...(media ? { media } : {}),
+          shareMediaCategory: "NONE",
         },
       },
       visibility: {
@@ -174,6 +275,24 @@ export async function publishToLinkedIn({ post_text, hashtags, imageBase64 }) {
   }
 
   return { linkedinPostId: linkedinPostId || data.id || null };
+}
+
+/**
+ * Publie un poste sur LinkedIn (visibilité publique), texte seul ou avec
+ * une ou plusieurs images jointes (`images`: [{ base64, mime_type }],
+ * base64 sans le préfixe "data:...;base64,", jusqu'à MAX_IMAGES_PER_POST).
+ * Retourne l'id du poste créé (utile pour lien direct plus tard).
+ */
+export async function publishToLinkedIn({ post_text, hashtags, images }) {
+  const text = buildShareText(post_text, hashtags);
+  if (!text) throw new Error("Le texte du post est vide, impossible de publier.");
+
+  const list = (images || []).filter((img) => img?.base64);
+  if (list.length > MAX_IMAGES_PER_POST) {
+    throw new Error(`Trop d'images jointes (${list.length}) — ${MAX_IMAGES_PER_POST} maximum par post.`);
+  }
+
+  return list.length > 0 ? publishWithImages({ text, images: list }) : publishTextOnly({ text });
 }
 
 /* ================================================================== */

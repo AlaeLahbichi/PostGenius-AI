@@ -12,6 +12,7 @@ import {
   linkedinStatusCtrl,
   scheduleCtrl,
   cancelScheduleCtrl,
+  imageCtrl,
 } from "../controllers/generate.controller.js";
 
 const router = Router();
@@ -23,6 +24,7 @@ router.post("/generate", generateCtrl);
 router.post("/save", saveCtrl);
 router.get("/created", created);
 router.patch("/created/:id/status", updateCreatedStatusCtrl);
+router.get("/created/:id/images/:index", imageCtrl);
 router.post("/created/:id/share", shareCreatedPostCtrl);
 router.post("/created/:id/schedule", scheduleCtrl);
 router.post("/created/:id/schedule/cancel", cancelScheduleCtrl);

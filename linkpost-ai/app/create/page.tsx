@@ -187,7 +187,7 @@ export default function GeneratePage() {
   const [saved, setSaved] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [image, setImage] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
+  const [images, setImages] = useState<{ base64: string; mimeType: string; name: string }[]>([]);
   const [showSchedule, setShowSchedule] = useState(false);
 
   const stepDef = STEPS[step - 1];
@@ -320,26 +320,92 @@ export default function GeneratePage() {
   }
 
   const MAX_IMAGE_BYTES = 4.5 * 1024 * 1024;
+  // LinkedIn refuse (PROCESSING_FAILED, silencieusement jusqu'ici) les
+  // images trop grandes : constaté en réel qu'un carré 6250×6250 échoue
+  // et que 2500×2500 passe. On redimensionne donc côté navigateur, avec
+  // une marge de sécurité, plutôt que de forcer l'utilisateur à le faire
+  // à la main.
+  const MAX_IMAGE_DIMENSION = 2000;
+  // Alignée sur la limite LinkedIn pour un post multi-images (voir aussi
+  // MAX_IMAGES_PER_POST côté backend, linkedinPublish.service.js).
+  const MAX_IMAGES = 10;
 
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // permet de resélectionner le même fichier après suppression
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Le fichier joint doit être une image.");
+  /**
+   * Redimensionne l'image si l'un de ses côtés dépasse MAX_IMAGE_DIMENSION
+   * (ratio conservé), via un <canvas>. Ne touche pas aux images déjà dans
+   * les clous — pas de perte de qualité inutile.
+   */
+  function resizeImageIfNeeded(file: File): Promise<{ base64: string; mimeType: string }> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const { width, height } = img;
+          if (width <= MAX_IMAGE_DIMENSION && height <= MAX_IMAGE_DIMENSION) {
+            const base64 = String(reader.result || "").split(",")[1] || "";
+            resolve({ base64, mimeType: file.type });
+            return;
+          }
+          const scale = MAX_IMAGE_DIMENSION / Math.max(width, height);
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.round(width * scale);
+          canvas.height = Math.round(height * scale);
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Impossible de traiter cette image."));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          // PNG conservé pour garder la transparence (captures d'écran…),
+          // sinon JPEG (plus léger pour une photo).
+          const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
+          const base64 = canvas.toDataURL(mimeType, 0.9).split(",")[1] || "";
+          resolve({ base64, mimeType });
+        };
+        img.onerror = () => reject(new Error("Image invalide ou corrompue."));
+        img.src = String(reader.result || "");
+      };
+      reader.onerror = () => reject(new Error("Lecture du fichier impossible."));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ""; // permet de resélectionner les mêmes fichiers après suppression
+    if (files.length === 0) return;
+
+    if (images.length + files.length > MAX_IMAGES) {
+      setError(`Maximum ${MAX_IMAGES} images par post (${images.length} déjà jointe${images.length > 1 ? "s" : ""}).`);
       return;
     }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError("Image trop volumineuse (4,5 Mo max).");
-      return;
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        setError("Chaque fichier joint doit être une image.");
+        return;
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        setError(`Image trop volumineuse : ${file.name} (4,5 Mo max).`);
+        return;
+      }
     }
     setError(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = String(reader.result || "").split(",")[1] || "";
-      setImage({ base64, mimeType: file.type, name: file.name });
-    };
-    reader.readAsDataURL(file);
+    try {
+      const processed = await Promise.all(
+        files.map(async (file) => {
+          const { base64, mimeType } = await resizeImageIfNeeded(file);
+          return { base64, mimeType, name: file.name };
+        })
+      );
+      setImages((prev) => [...prev, ...processed]);
+    } catch (err: any) {
+      setError(err?.message || "Impossible de traiter une de ces images.");
+    }
+  }
+
+  function removeImage(index: number) {
+    setImages((prev) => prev.filter((_, i) => i !== index));
   }
 
   /**
@@ -367,8 +433,7 @@ export default function GeneratePage() {
           tones: sel.tones,
           formats: sel.formats,
           post_text: generated,
-          image_base64: image?.base64 ?? null,
-          image_mime_type: image?.mimeType ?? null,
+          images: images.map((img) => ({ base64: img.base64, mimeType: img.mimeType })),
         }),
       });
       const json = await res.json();
@@ -580,19 +645,74 @@ export default function GeneratePage() {
                 />
               )}
 
-              {/* Image jointe (optionnelle) */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 8, background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 14px", fontSize: 13, fontWeight: 600, color: C.textMain, cursor: "pointer" }}>
-                  📷 {image ? "Changer l'image" : "Joindre une image"}
-                  <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: "none" }} />
-                </label>
-                {image && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <img src={`data:${image.mimeType};base64,${image.base64}`} alt={image.name} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: `1px solid ${C.border}` }} />
-                    <span style={{ fontSize: 12.5, color: C.textSecondary, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{image.name}</span>
-                    <button onClick={() => setImage(null)} style={{ background: "transparent", border: "none", color: C.red, fontSize: 12.5, cursor: "pointer", fontWeight: 700 }}>
-                      Retirer
-                    </button>
+              {/* Images jointes (optionnelles, jusqu'à MAX_IMAGES) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      background: images.length >= MAX_IMAGES ? C.border : C.bgSecondary,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 10,
+                      padding: "9px 14px",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: C.textMain,
+                      cursor: images.length >= MAX_IMAGES ? "not-allowed" : "pointer",
+                      opacity: images.length >= MAX_IMAGES ? 0.6 : 1,
+                    }}
+                  >
+                    📷 {images.length > 0 ? `Ajouter des images (${images.length}/${MAX_IMAGES})` : "Joindre des images"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      disabled={images.length >= MAX_IMAGES}
+                      onChange={handleImageChange}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                  {images.length > 0 && (
+                    <span style={{ fontSize: 12, color: C.textSecondary }}>
+                      {images.length} image{images.length > 1 ? "s" : ""} jointe{images.length > 1 ? "s" : ""} — publiées dans cet ordre
+                    </span>
+                  )}
+                </div>
+                {images.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    {images.map((img, i) => (
+                      <div key={i} style={{ position: "relative", width: 72, height: 72 }}>
+                        <img
+                          src={`data:${img.mimeType};base64,${img.base64}`}
+                          alt={img.name}
+                          style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, border: `1px solid ${C.border}` }}
+                        />
+                        <button
+                          onClick={() => removeImage(i)}
+                          title="Retirer cette image"
+                          style={{
+                            position: "absolute",
+                            top: -6,
+                            right: -6,
+                            width: 20,
+                            height: 20,
+                            borderRadius: "50%",
+                            background: C.red,
+                            color: "#fff",
+                            border: "none",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            lineHeight: "20px",
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

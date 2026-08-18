@@ -41,13 +41,13 @@ Concrètement, l'application permet de :
 Statistiques globales sur les posts personnels synchronisés (réactions, commentaires, partages, interactions totales), évolution dans le temps avec granularité ajustable (heure/jour/semaine/mois/année), synchronisation automatique planifiable, et suivi de l'expiration du token de publication LinkedIn.
 
 ### ✨ Génération de posts assistée par IA
-Assistant en plusieurs étapes : objectif, audience, appel à l'action, longueur, puis choix guidé du pattern narratif, du hook, de l'angle d'attaque, du style, du ton et du format — avec des recommandations basées sur l'usage et la performance historique de chaque dimension. Le texte est généré via un LLM (OpenRouter), en s'inspirant à la fois des posts concurrents analysés et **des posts personnels les plus performants** (« voix perso »), pour un résultat plus proche du style d'écriture réel de l'utilisateur. Une image peut être jointe au post avant publication.
+Assistant en plusieurs étapes : objectif, audience, appel à l'action, longueur, puis choix guidé du pattern narratif, du hook, de l'angle d'attaque, du style, du ton et du format — avec des recommandations basées sur l'usage et la performance historique de chaque dimension. Le texte est généré via un LLM (OpenRouter), en s'inspirant à la fois des posts concurrents analysés et **des posts personnels les plus performants** (« voix perso »), pour un résultat plus proche du style d'écriture réel de l'utilisateur. Jusqu'à 10 images peuvent être jointes au post avant publication (redimensionnées automatiquement si besoin).
 
 ### 🗂️ Postes générés
 Suivi des posts générés avec un vrai cycle de vie : **brouillon** → **programmé** (publication différée) ou **publié** (après une publication réelle sur LinkedIn) → **supprimé** (suppression douce, consultable séparément). Filtrage, aperçu du contenu complet, et actions directes (publier, programmer, supprimer).
 
 ### 🔗 Publication réelle sur LinkedIn
-Intégration à l'API LinkedIn (UGC Posts) : le texte généré, complété des hashtags et d'une éventuelle image jointe (Assets API LinkedIn), est publié directement sur le profil LinkedIn de l'utilisateur. Un post n'est marqué "publié" dans l'application que si la publication a réellement réussi côté LinkedIn.
+Intégration à l'API LinkedIn : le texte généré, complété des hashtags et d'éventuelles images jointes (une seule ou jusqu'à 10, façon carrousel — API REST Images/Posts LinkedIn), est publié directement sur le profil LinkedIn de l'utilisateur. Un post n'est marqué "publié" dans l'application que si la publication a réellement réussi côté LinkedIn.
 
 ### 🕒 Publication différée
 Un brouillon peut être programmé à une date et une heure précises : un vérificateur tourne en tâche de fond côté serveur et publie automatiquement le post à l'heure choisie, même sans navigateur ouvert.
@@ -164,6 +164,7 @@ npm install
 | `LINKEDIN_ACCESS_TOKEN` | Token OAuth LinkedIn (scopes `w_member_social`, `openid`, `profile`) |
 | `LINKEDIN_AUTHOR_URN` | *(optionnel)* `urn:li:person:...` — évite de redemander le scope profil à chaque régénération de token |
 | `LINKEDIN_TOKEN_ISSUED_AT` | *(recommandé)* Date de génération du token (`AAAA-MM-JJ`) — permet d'estimer son expiration (durée de vie standard : 60 jours) et d'afficher une alerte avant qu'il n'expire |
+| `LINKEDIN_API_VERSION` | *(optionnel)* Version de l'API REST versionnée LinkedIn (format `AAAAMM`) utilisée pour la publication avec image. LinkedIn ne garde qu'une fenêtre glissante de versions actives (~12 mois) : si la valeur par défaut expire (erreur `426 NONEXISTENT_VERSION`), renseigner une version plus récente ici |
 
 **`linkpost-ai/.env.local`**
 

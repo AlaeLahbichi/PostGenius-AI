@@ -76,8 +76,9 @@ export async function insertCreatedPost(doc) {
 /**
  * Liste les postes générés, éventuellement filtrés par statut(s)
  * ("brouillon", "programme", "shared", "supprime"). Sans filtre : tous
- * les statuts. L'image (potentiellement lourde) n'est jamais renvoyée
- * dans une liste — seule sa présence (image_mime_type) l'est.
+ * les statuts. Les images (potentiellement lourdes) ne sont jamais
+ * renvoyées dans une liste — seul leur mime_type (donc leur présence et
+ * leur nombre) l'est.
  */
 export async function listCreatedPosts(statuses) {
   const col = getCollection(CREATED);
@@ -85,7 +86,7 @@ export async function listCreatedPosts(statuses) {
     ? { status: { $in: statuses } }
     : {};
   return await col
-    .find(filter, { projection: { image_base64: 0 } })
+    .find(filter, { projection: { image_base64: 0, "images.base64": 0 } })
     .sort({ created_at: -1 })
     .toArray();
 }
@@ -105,6 +106,22 @@ export async function findCreatedPostById(id) {
   if (!ObjectId.isValid(id)) return null;
   const col = getCollection(CREATED);
   return await col.findOne({ _id: new ObjectId(id) });
+}
+
+/**
+ * Uniquement les images d'un poste généré (jamais renvoyées dans la
+ * liste, voir listCreatedPosts) — utilisé pour les afficher à la demande
+ * via GET /generate/created/:id/images/:index. Inclut aussi l'ancien
+ * champ singulier (image_base64/image_mime_type) pour les postes créés
+ * avant le passage au multi-images.
+ */
+export async function findCreatedPostImages(id) {
+  if (!ObjectId.isValid(id)) return null;
+  const col = getCollection(CREATED);
+  return await col.findOne(
+    { _id: new ObjectId(id) },
+    { projection: { images: 1, image_base64: 1, image_mime_type: 1 } }
+  );
 }
 
 /**

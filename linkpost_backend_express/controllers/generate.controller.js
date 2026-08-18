@@ -5,6 +5,7 @@ import {
   generatePost,
   savePost,
   getCreated,
+  getCreatedPostImage,
   updateGeneratedPostStatus,
   shareGeneratedPost,
   schedulePost,
@@ -121,6 +122,20 @@ export async function shareCreatedPostCtrl(req, res) {
       error.message.includes("introuvable") ||
       error.message.includes("supprimé");
     return res.status(isClient ? 400 : 502).json({ success: false, message: error.message });
+  }
+}
+
+export async function imageCtrl(req, res) {
+  try {
+    const index = Number(req.params.index) || 0;
+    const { image_base64, image_mime_type } = await getCreatedPostImage(req.params.id, index);
+    res.set("Cache-Control", "private, max-age=3600");
+    res.set("Content-Type", image_mime_type);
+    return res.status(200).send(Buffer.from(image_base64, "base64"));
+  } catch (error) {
+    console.error("Erreur image :", error);
+    const isClient = error.message.includes("obligatoire") || error.message.includes("introuvable");
+    return res.status(isClient ? 404 : 500).json({ success: false, message: error.message });
   }
 }
 

@@ -16,6 +16,7 @@ import {
   StatusBadge,
   PostDetailModal,
   ScheduleInline,
+  postImageUrls,
 } from "./shared";
 
 type FilterValue = "all" | "brouillon" | "programme" | "shared";
@@ -190,6 +191,34 @@ export default function GeneratedPostsPage() {
 
                 {post.status === "programme" && post.scheduled_at && (
                   <div style={{ fontSize: 12, color: C.blue }}>🕒 Programmé pour le {fmtDate(post.scheduled_at)}</div>
+                )}
+
+                {postImageUrls(post).length > 0 && (
+                  <div style={{ position: "relative" }}>
+                    <img
+                      onClick={() => setSelected(post)}
+                      src={postImageUrls(post)[0]}
+                      alt="Image jointe"
+                      style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 10, cursor: "pointer", border: `1px solid ${C.border}` }}
+                    />
+                    {postImageUrls(post).length > 1 && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          bottom: 8,
+                          right: 8,
+                          background: "rgba(5,8,20,.75)",
+                          color: "#fff",
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          borderRadius: 999,
+                          padding: "3px 9px",
+                        }}
+                      >
+                        +{postImageUrls(post).length - 1}
+                      </span>
+                    )}
+                  </div>
                 )}
 
                 <p
